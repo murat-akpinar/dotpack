@@ -6,6 +6,7 @@
 - *(pkg)* The package layer, on pacman -T rather than a set difference ([6af5bb4](https://github.com/murat-akpinar/dotpack/commit/6af5bb4bd8e6bc599e2c7ca11116f5edd3342ebc)) — M1's package half. The plan said "installed list via -Qqen / -Qqem" and then subtract; `pacman -T` is one call and it is the one that is correct.
 - *(m1)* Switching — the ledger, links, backups and the use/ls/sync/rm verbs ([bf34dad](https://github.com/murat-akpinar/dotpack/commit/bf34dad4361849bffc801eaa6afb79d0029e44ce)) — After this the tool works. `dotpack use example` places the bundle, `use -` goes back, and the machine ends up where it started.
 - *(scan)* Reference integrity, both extractors ([213fa9f](https://github.com/murat-akpinar/dotpack/commit/213fa9f6c23c0a214af4fcb3a7169365ec45ed27)) — Every shipped text file is read for the files it points at. A bundle that ships kitty.conf without the catppuccin.conf it includes installs a kitty that errors on every start, and nothing else in the tool would notice.
+- *(scan)* The secret scan, and ls runs it on the active bundle ([2f74e26](https://github.com/murat-akpinar/dotpack/commit/2f74e268359f560b0e7aa12f7676284ec094f368)) — Both layers from design.md §6. Shell history is in the deny-list because a public repo that was examined shipped `private_dot_histfile` — chezmoi's `private_` prefix means chmod 600, not "not published".
 
 ### 📚 Documentation
 
