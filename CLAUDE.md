@@ -16,10 +16,6 @@ real shared rices actually look like (several design rules come from that teardo
 **Everything in this repo is written in English** — docs, filenames, code, comments,
 commit messages. The user writes in Turkish; the files do not.
 
-**Commits carry the user's identity only.** `git commit`, `git-cliff` output and pushes
-must never contain `Co-Authored-By: Claude`, a `Claude-Session:` trailer, or a
-"Generated with Claude Code" line.
-
 ## Terminology
 
 - **bundle** — a directory in the shared format (`dotfiles.toml` + `config/` + …). One git repo = one bundle.
@@ -92,6 +88,20 @@ means write the lines.
 - Non-trivial logic leaves one runnable check behind (`#[test]` next to the code). No test frameworks, no fixtures.
 - TUI colors use terminal palette constants (`Color::Green`), never hardcoded RGB. A ricing tool must not override the user's theme.
 - `std::panic::set_hook` must restore the terminal before printing. Non-negotiable.
+
+## Git
+
+- **Commits carry the user's identity only.** Never add `Co-Authored-By: Claude`, a
+  `Claude-Session:` trailer, or a "Generated with Claude Code" line — not in commits, not
+  in PR bodies, not in changelog entries.
+- **Conventional commits.** `cliff.toml` sets `filter_unconventional = true`, so a commit
+  that does not start with `feat:` / `fix:` / `docs:` / `refactor:` / `chore:` … is
+  dropped from the changelog entirely. Scope in parens: `docs(manifest): …`.
+- **Regenerate the changelog with the commit that changes behavior**, not afterwards:
+
+```bash
+git-cliff -o CHANGELOG.md
+```
 
 ## Commands
 
