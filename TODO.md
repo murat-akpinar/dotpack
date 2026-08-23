@@ -122,14 +122,20 @@ trip and do not need to be — the tool only ever *writes* a manifest it generat
 the repo. No `collect`, no ecosystem, nobody else's repo required.
 
 ### Package layer
-- [ ] `pkg.rs` — installed list via `pacman -Qqen` / `-Qqem`
-- [ ] `pkg.rs` — binary → package: `pacman -Qoq $(command -v X)`
-- [ ] `pkg.rs` — command not installed: `pacman -F`, detect that `-Fy` is needed
-- [ ] `pkg.rs` — helper detection: `paru` → `yay` → `pikaur` → `trizen`
-- [ ] `pkg.rs` — merge the `yay` + `paru` lists into a single AUR set
-- [ ] `pkg.rs` — install: `pacman -S --needed`, then `<helper> -S --needed`
-- [ ] Package not found → search the AUR → ask → otherwise report and continue
-- [ ] **Never run `-Syu`**
+- [x] `pkg.rs` — what is missing: **`pacman -T`**, not a set difference against `-Qqen` /
+      `-Qqem`. `-T` resolves *provides*, so the installed `noctalia-qs` satisfies a bundle
+      asking for `quickshell`; subtracting `-Qq` calls it missing and `-S` then hits a
+      conflict. One call, and the same call afterwards names every failure exactly
+- [x] `pkg.rs` — helper detection: `paru` → `yay` → `pikaur` → `trizen`
+- [x] `pkg.rs` — merge the `yay` + `paru` lists into a single AUR set
+- [x] `pkg.rs` — install: `pacman -S --needed`, then `<helper> -S --needed`
+- [x] Package not found → handed to the AUR helper, which searches both. One unknown name
+      would otherwise make `pacman -S` refuse the **whole** transaction. With no helper it
+      is reported and the switch continues
+- [x] **Never run `-Syu`** — a test greps for it
+- → **moved to M2**: `-Qqen` / `-Qqem`, `-Qoq $(command -v X)` and `pacman -F` / `-Fy`.
+      They are the command → package chain's primitives and `scan/deps.rs` is their only
+      caller; written here they would be untested code with nothing calling it
 
 ### Apply (the only writing module — `src/apply/`, see `design.md` §8)
 - [ ] `apply/ledger.rs` — `state.toml`: `active`, `previous`, links, `mkdirs`, `hooks_ran`

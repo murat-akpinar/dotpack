@@ -5,6 +5,7 @@
 mod bundle;
 mod manifest;
 mod paths;
+mod pkg;
 
 use anyhow::{Result, bail};
 use clap::{Parser, Subcommand};

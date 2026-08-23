@@ -333,8 +333,10 @@ yay    = ["matugen-bin"]
         assert!(toml::from_str::<Manifest>("wm = \"hyprland\"").is_err());
         assert!(toml::from_str::<Manifest>("name = \"x\"\nwm = \"bspwm\"").is_err());
         assert!(
-            toml::from_str::<Manifest>("name = \"x\"\nwm = \"sway\"\n[packages]\npacman = \"kitty\"")
-                .is_err()
+            toml::from_str::<Manifest>(
+                "name = \"x\"\nwm = \"sway\"\n[packages]\npacman = \"kitty\""
+            )
+            .is_err()
         );
     }
 
