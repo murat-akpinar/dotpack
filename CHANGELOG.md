@@ -1,5 +1,9 @@
 ## [unreleased]
 
+### 🚀 Features
+
+- *(m0)* Manifest types, layout rules and the CLI skeleton ([15291d5](https://github.com/murat-akpinar/dotpack/commit/15291d5436b066094a92ff8e6357c0778d425fcc)) — The first code in the repo. M0's whole job is that the two things every later milestone reads — the manifest and the layout — are settled and tested before anything writes to a disk.
+
 ### 📚 Documentation
 
 - *(example)* Add a real rice as a bundle ([6f55ae6](https://github.com/murat-akpinar/dotpack/commit/6f55ae6d3e7b450553c5b27e472ee5a4bdaff986)) — imperative-dots as this machine runs it: 71 packages lifted from the installer's hardcoded array, 21 components, and the hypr config tree with its 14 executable scripts. 1898 lines of bash become 72 lines of TOML.
