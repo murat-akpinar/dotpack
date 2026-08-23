@@ -627,9 +627,13 @@ but the sequences, so §4.2's thirteen steps and [profiles.md](./profiles.md)'s 
 Being a directory also makes the one-writer rule checkable instead of merely stated:
 
 ```bash
-grep -rlE 'fs::(write|copy|create_dir|remove|rename)|symlink|OpenOptions' src/ \
+grep -rlE 'fs::(write|copy|create_dir|remove|rename)|os::unix::fs::symlink|OpenOptions' src/ \
   | grep -v '^src/apply/'          # any output means the invariant is broken
 ```
+
+The pattern names `os::unix::fs::symlink`, the call that *creates* one, and not a bare
+`symlink`: `symlink_metadata()` reads, `scan/refs.rs` and `scan/secrets.rs` both need it,
+and a check that always prints three false positives is a check that stops being run.
 
 Nothing else gets pre-split. `manifest.rs` will land near 300 lines and stays one file —
 it is one subject, and cutting it into types-here / validation-there answers a question

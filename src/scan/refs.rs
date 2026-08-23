@@ -16,7 +16,28 @@ const KEYWORDS: &[&str] = &["source", "include", "@import", "require", "dofile"]
 /// Runtime paths, not bundle content. `QS_CACHE_DIR="$HOME/.cache/quickshell"` is a
 /// directory the script creates, not a file somebody forgot to ship — and a check that
 /// cries wolf on `~/.cache` gets switched off, taking the real findings with it.
-const RUNTIME: &[&str] = &[".cache/", ".local/state/", ".local/share/Trash/"];
+const RUNTIME: &[&str] = &[".cache/", ".local/state/", ".local/share/"];
+
+/// The area roots themselves. `du -sh ~/.config ~/.cache` names three directories; none
+/// of them is a file anybody forgot to ship.
+const AREA_ROOTS: &[&str] = &[
+    "",
+    ".config",
+    ".local",
+    ".local/share",
+    ".local/bin",
+    ".cache",
+];
+
+/// ...except the four `~/.local/share` directories the bundle format actually maps.
+/// A font under `local/share/fonts/` is content; `~/.local/share/focustime` is a
+/// directory a script creates at runtime.
+const LOCAL_SHARE_CONTENT: &[&str] = &[
+    ".local/share/fonts",
+    ".local/share/icons",
+    ".local/share/themes",
+    ".local/share/applications",
+];
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Verdict {
@@ -71,6 +92,12 @@ pub fn scan(files: &[PathBuf]) -> Vec<Reference> {
 
         for (index, line) in text.lines().enumerate() {
             for raw in references_in(line, dir) {
+                // A bare variable is not a file reference — `$CACHE_FILE` is unknowable
+                // and saying so on every line is how a check gets switched off. One with
+                // a path in it (`$SCRIPT_DIR/../caching.sh`) is still worth reporting.
+                if raw.contains('$') && !raw.contains('/') {
+                    continue;
+                }
                 let path = resolve(&raw, dir);
                 found.push(Reference {
                     verdict: verdict(&path, &shipped),
@@ -101,10 +128,14 @@ fn references_in(line: &str, dir: &Path) -> Vec<String> {
     if let Some((keyword, rest)) = trimmed.split_once(|c: char| c.is_whitespace() || c == '=')
         && KEYWORDS.contains(&keyword.trim_end_matches('=').trim())
     {
+        let keyword = keyword.trim_end_matches('=').trim();
         let value = clean(rest.trim().trim_start_matches('=').trim());
+        // `require("nvchad.options")` names a Lua module, not a file — and neovim's
+        // config is nothing but those. Only a value with a path in it is a reference.
+        let module = matches!(keyword, "require" | "dofile") && !value.contains('/');
         // A value with a `$(` in it is the substitution's business, not this one's:
         // taking the rest of the line here would grab `$(dirname ` as a filename.
-        if !value.is_empty() && !value.contains("$(") {
+        if !value.is_empty() && !module && !value.contains("$(") {
             found.push(value);
         }
     }
@@ -138,13 +169,18 @@ fn substitute_dirname(line: &str, dir: &Path) -> String {
     out
 }
 
-/// Strip what surrounds a path in a config file, never what is in it.
+/// Strip what surrounds a path in a config file, never what is in it. A reference in a
+/// QML array or a JSON object ends `…/reload.sh"}`, and one character of leftover
+/// punctuation turns a file that exists into a "dead reference".
 fn clean(value: &str) -> String {
     value
         .trim()
-        .trim_matches(|c| c == '"' || c == '\'')
-        .trim_end_matches([';', ',', ')'])
-        .trim_matches(|c| c == '"' || c == '\'')
+        .trim_start_matches(|c| "\"'`([{".contains(c))
+        // Cut, not trim: a sed expression ends `…/scripts|g` and a QML array
+        // `…/init.sh"]`, and everything from the first of these on is not the path.
+        .split(|c| "\"'`|,;)]}\\".contains(c))
+        .next()
+        .unwrap_or_default()
         .trim()
         .to_string()
 }
@@ -165,14 +201,33 @@ fn resolve(raw: &str, dir: &Path) -> Option<PathBuf> {
     if expanded.to_string_lossy().contains('$') {
         return None;
     }
-    Some(expanded)
+    Some(normalize(&expanded))
+}
+
+/// Resolve `..` lexically. `$(dirname …)/../../caching.sh` is a real reference to a real
+/// file, and comparing it against the selection unnormalized always says "not shipped".
+fn normalize(path: &Path) -> PathBuf {
+    let mut out = PathBuf::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::ParentDir => {
+                out.pop();
+            }
+            std::path::Component::CurDir => {}
+            other => out.push(other),
+        }
+    }
+    out
 }
 
 fn verdict(path: &Option<PathBuf>, shipped: &BTreeSet<&Path>) -> Verdict {
     let Some(path) = path else {
         return Verdict::Unresolved;
     };
-    if shipped.contains(path.as_path()) {
+    // A directory counts as shipped when its contents are: `exec-once = quickshell -p
+    // ~/.config/hypr/scripts/quickshell` names a directory, and every file in it is in
+    // the selection.
+    if shipped.contains(path.as_path()) || shipped.iter().any(|f| f.starts_with(path)) {
         return Verdict::Shipped;
     }
     if !path.starts_with(paths::home()) {
@@ -181,7 +236,11 @@ fn verdict(path: &Option<PathBuf>, shipped: &BTreeSet<&Path>) -> Verdict {
     // Runtime paths are not bundle content, whether they exist yet or not.
     let below_home = path.strip_prefix(paths::home()).unwrap_or(path);
     let below_home = below_home.to_string_lossy();
-    if RUNTIME.iter().any(|r| below_home.starts_with(r)) || !below_home.starts_with('.') {
+    if AREA_ROOTS.contains(&below_home.as_ref()) {
+        return Verdict::Shipped;
+    }
+    let content = LOCAL_SHARE_CONTENT.iter().any(|c| under(&below_home, c));
+    if !content && (RUNTIME.iter().any(|r| under(&below_home, r)) || !below_home.starts_with('.')) {
         return Verdict::Shipped;
     }
     if path.symlink_metadata().is_ok() {
@@ -189,6 +248,12 @@ fn verdict(path: &Option<PathBuf>, shipped: &BTreeSet<&Path>) -> Verdict {
     } else {
         Verdict::Dead
     }
+}
+
+/// Whole components only, so `.cache` does not also mean `.cachalot`.
+fn under(path: &str, prefix: &str) -> bool {
+    let prefix = prefix.trim_end_matches('/');
+    path == prefix || path.starts_with(&format!("{prefix}/"))
 }
 
 /// Text only — a font or a screenshot has no references in it, and reading one as UTF-8

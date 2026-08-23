@@ -33,6 +33,71 @@ pub const DEFAULT_IGNORE: &[&str] = &[
 ];
 // --- default ignore end ---
 
+/// Which pattern keeps this path out of a bundle, if any. **Collect-time only**: at
+/// install time `~/.config/hypr` is one directory link and there is no per-file decision
+/// left to make.
+///
+/// A written `ignore` list is *added* to [`DEFAULT_IGNORE`], it does not replace it.
+pub fn ignored<'a>(patterns: &'a [String], relative: &Path) -> Option<&'a str> {
+    let path = relative.to_string_lossy().replace('\\', "/");
+    patterns
+        .iter()
+        .map(String::as_str)
+        .chain(DEFAULT_IGNORE.iter().copied())
+        .find(|pattern| matches(pattern, &path))
+}
+
+fn matches(pattern: &str, path: &str) -> bool {
+    let pattern = pattern.trim_end_matches('/');
+    // A leading `*/` means "anywhere below": `*/History/` is VS Code's state directory,
+    // wherever it turns up.
+    let (pattern, floating) = match pattern.strip_prefix("*/") {
+        Some(rest) => (rest, true),
+        None => (pattern, false),
+    };
+    // A bare pattern matches any single component: `*.mp4` any file, `Code` any directory.
+    if !floating && !pattern.contains('/') {
+        return path.split('/').any(|segment| glob(pattern, segment));
+    }
+    let segments: Vec<&str> = path.split('/').collect();
+    let wanted: Vec<&str> = pattern.split('/').collect();
+    // Fewer pattern segments than path segments is a prefix match, so `.git/` covers
+    // everything under it.
+    (0..if floating { segments.len() } else { 1 }).any(|start| {
+        wanted
+            .iter()
+            .enumerate()
+            .all(|(index, p)| segments.get(start + index).is_some_and(|s| glob(p, s)))
+    })
+}
+
+/// `*` and nothing else. ponytail: if a real glob is ever needed, that is where `glob`
+/// earns its place — the default list and the manifests seen so far use only this.
+fn glob(pattern: &str, segment: &str) -> bool {
+    let mut parts = pattern.split('*');
+    let Some(first) = parts.next() else {
+        return pattern == segment;
+    };
+    if !segment.starts_with(first) {
+        return false;
+    }
+    if !pattern.contains('*') {
+        return pattern == segment;
+    }
+    let mut rest = &segment[first.len()..];
+    let parts: Vec<&str> = parts.collect();
+    for (index, part) in parts.iter().enumerate() {
+        if index == parts.len() - 1 {
+            return rest.ends_with(part);
+        }
+        match rest.find(part) {
+            Some(at) => rest = &rest[at + part.len()..],
+            None => return false,
+        }
+    }
+    true
+}
+
 // --- types start ---
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -361,5 +426,42 @@ bar = { pkg = "waybar" }
         );
         let w = m.validate().expect("warnings only");
         assert_eq!(w.len(), 4, "{w:#?}");
+    }
+}
+
+#[cfg(test)]
+mod ignore_tests {
+    use super::*;
+
+    fn hit(path: &str) -> Option<&'static str> {
+        // The user's own entries, on top of the default list.
+        let patterns = [
+            "config/hypr/settings.json".to_string(),
+            "config/hypr/scripts/*.log".to_string(),
+        ];
+        ignored(&patterns, Path::new(path))
+            .map(|p| Box::leak(p.to_string().into_boxed_str()) as &str)
+    }
+
+    #[test]
+    fn default_and_written_patterns() {
+        assert_eq!(
+            hit("config/hypr/settings.json"),
+            Some("config/hypr/settings.json")
+        );
+        assert_eq!(
+            hit("config/hypr/scripts/debug.log"),
+            Some("config/hypr/scripts/*.log")
+        );
+        assert_eq!(hit(".git/objects/ab/cdef"), Some(".git/"));
+        assert_eq!(hit("preview/demo.mp4"), Some("*.mp4"));
+        assert_eq!(hit("config/Code/User/settings.json"), Some("Code/"));
+        assert_eq!(hit("config/x/History/index"), Some("*/History/"));
+        assert_eq!(hit("config/x/Trust Tokens-journal"), Some("*Trust Tokens*"));
+
+        // The screenshot the `preview` field points at is the reason preview/ exists.
+        assert_eq!(hit("preview/screenshot.png"), None);
+        assert_eq!(hit("config/hypr/hyprland.conf"), None);
+        assert_eq!(hit("config/hypr/settings.jsonc"), None);
     }
 }

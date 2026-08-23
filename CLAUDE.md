@@ -32,8 +32,10 @@ commit messages. The user writes in Turkish; the files do not.
    the only place that mutates the filesystem — **including `collect`'s output**
    (`apply::write::write_bundle()`). A `collect.rs` that writes its own files makes this
    invariant false on day one. The rule is greppable, so keep it that way:
-   `grep -rlE 'fs::(write|copy|create_dir|remove|rename)|symlink' src/ | grep -v '^src/apply/'`
-   must print nothing.
+   `grep -rlE 'fs::(write|copy|create_dir|remove|rename)|os::unix::fs::symlink|OpenOptions' src/ | grep -v '^src/apply/'`
+   must print nothing. (Bare `symlink` in the pattern also matches `symlink_metadata()`,
+   which *reads* — `scan/refs.rs` needs it, and a check that always prints something is a
+   check nobody runs.)
 2. **Nothing is destroyed without a backup.** Any real file at a target path is moved
    to `~/.local/state/dotpack/backups/<timestamp>/` and recorded in the ledger
    so it can be restored.

@@ -158,7 +158,7 @@ pub fn deactivate() -> Result<Summary> {
 /// Re-place the links of the active bundle whose targets no longer hold them. The
 /// write-back half — putting the application's version into the bundle — is M2, because
 /// a file entering the bundle has to pass the secret scan first.
-pub fn sync() -> Result<Summary> {
+pub fn sync(discard: bool) -> Result<Summary> {
     let mut ledger = Ledger::load()?;
     let mut summary = Summary::default();
     let Some(name) = ledger.active.clone() else {
@@ -184,10 +184,34 @@ pub fn sync() -> Result<Summary> {
             continue;
         };
         if state == links::State::Detached {
-            summary.notes.push(format!(
-                "{} was detached — the file was backed up",
-                entry.target
-            ));
+            let target = paths::expand(&entry.target);
+            // An application replaced our link with a real file, and its version is
+            // normally the one that is wanted — that is the whole reason sync exists.
+            let refused = if discard {
+                Vec::new()
+            } else {
+                write::write_back(&target, &link.source)?
+            };
+            if refused.is_empty() {
+                summary.notes.push(format!(
+                    "{} was detached — {}",
+                    entry.target,
+                    if discard {
+                        "backed up, and the bundle's version relinked"
+                    } else {
+                        "written back into the bundle, then relinked"
+                    }
+                ));
+            } else {
+                summary.notes.push(format!(
+                    "{} was NOT written back — it would put a secret in the bundle:",
+                    entry.target
+                ));
+                summary
+                    .notes
+                    .extend(refused.into_iter().map(|r| format!("    {r}")));
+                continue;
+            }
         }
         *entry = links::place(&link, Some(entry), &stamp, &mut summary.notes)?;
         summary.linked += 1;

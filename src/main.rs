@@ -28,7 +28,29 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// Scan this machine's configs and packages, write a bundle
-    Collect,
+    Collect {
+        /// Directories under ~/.config. With none given: the WM's own, plus the ones its
+        /// config starts or points at
+        dirs: Vec<String>,
+        /// Where to write. Default: ~/dotfiles
+        #[arg(long)]
+        out: Option<std::path::PathBuf>,
+        /// The bundle's name. Default: <user>-<wm>
+        #[arg(long)]
+        name: Option<String>,
+        /// Override WM detection
+        #[arg(long)]
+        wm: Option<String>,
+        /// Keep a path out of the bundle. Repeatable, collect-time only
+        #[arg(long)]
+        ignore: Vec<String>,
+        /// Do not `git init` the result
+        #[arg(long)]
+        no_git: bool,
+        /// Skip the confirmation
+        #[arg(short, long)]
+        yes: bool,
+    },
     /// Download a bundle into the local store, without installing it
     Add { source: String },
     /// Make a bundle active — the rice switch. `-` returns to the previous one
@@ -42,7 +64,11 @@ enum Command {
     /// Bundles in the local store, and which one is active
     Ls,
     /// Repair links an application replaced with a real file
-    Sync,
+    Sync {
+        /// Keep the bundle's version instead of the application's
+        #[arg(long)]
+        discard: bool,
+    },
     /// Render a bundle's `components` as a shareable list
     Post { name: Option<String> },
     /// Remove a bundle from the store
@@ -53,12 +79,20 @@ fn main() -> Result<()> {
     match Cli::parse().command {
         Some(Command::Use { target, yes }) => use_bundle(&target, yes),
         Some(Command::Ls) => list(),
-        Some(Command::Sync) => {
-            report(apply::sync()?);
+        Some(Command::Sync { discard }) => {
+            report(apply::sync(discard)?);
             Ok(())
         }
         Some(Command::Rm { name }) => apply::remove_bundle(&name),
-        Some(Command::Collect) => bail!("collect: M2"),
+        Some(Command::Collect {
+            dirs,
+            out,
+            name,
+            wm,
+            ignore,
+            no_git,
+            yes,
+        }) => collect(&dirs, out, name, wm, &ignore, !no_git, yes),
         Some(Command::Post { .. }) => bail!("post: M3"),
         Some(Command::Add { .. }) => bail!("add: M4"),
         None => bail!("the TUI is M6 — use a subcommand for now (`dotpack --help`)"),
@@ -94,7 +128,7 @@ fn use_previous(yes: bool) -> Result<()> {
         // going back with no previous bundle lands.
         None if ledger.active.is_some() => {
             println!("no previous bundle — this removes every link and leaves none active");
-            if !yes && !confirm()? {
+            if !yes && !confirm("apply")? {
                 return Ok(());
             }
             report(apply::deactivate()?);
@@ -108,7 +142,7 @@ fn activate(bundle: &Bundle, yes: bool) -> Result<()> {
     let plan = apply::plan(bundle)?;
     show(&plan);
     // `enter` is never destructive: the plan is shown, and applying it is a second step.
-    if !yes && !confirm()? {
+    if !yes && !confirm("apply")? {
         println!("nothing done");
         return Ok(());
     }
@@ -164,8 +198,8 @@ fn report(summary: apply::Summary) {
     }
 }
 
-fn confirm() -> Result<bool> {
-    print!("apply? [y/N] ");
+fn confirm(verb: &str) -> Result<bool> {
+    print!("{verb}? [y/N] ");
     std::io::stdout().flush()?;
     let mut answer = String::new();
     std::io::stdin().read_line(&mut answer)?;
@@ -173,6 +207,107 @@ fn confirm() -> Result<bool> {
 }
 
 // --- use end ---
+
+// --- collect start ---
+
+fn collect(
+    dirs: &[String],
+    out: Option<std::path::PathBuf>,
+    name: Option<String>,
+    wm: Option<String>,
+    ignore: &[String],
+    git: bool,
+    yes: bool,
+) -> Result<()> {
+    let wm = match wm {
+        Some(given) => scan::wm::parse(&given)
+            .ok_or_else(|| anyhow::anyhow!("unknown wm `{given}` — hyprland, sway or i3"))?,
+        None => scan::wm::detect()
+            .ok_or_else(|| anyhow::anyhow!("could not tell which WM this is — pass --wm"))?,
+    };
+    let collected = scan::collect(dirs, ignore, name, wm)?;
+    let out = out.unwrap_or_else(|| paths::home().join("dotfiles"));
+
+    println!("collect: {} ({wm:?})", collected.manifest.name);
+    for (directory, count) in counts(&collected) {
+        println!("  {directory:<22} {count:>3} files");
+    }
+    let p = &collected.manifest.packages;
+    println!(
+        "  packages               {:>3} from repos, {} from the AUR",
+        p.pacman.len(),
+        p.yay.len() + p.paru.len()
+    );
+    // Every suggestion carries the line that produced it. Seeing that `texinfo` came from
+    // one `info "…"` call is the difference between weeding the list and trusting it.
+    for suggestion in &collected.suggestions {
+        println!(
+            "    {:<24} {}{}",
+            suggestion.package,
+            suggestion.reason,
+            suggestion
+                .note
+                .as_ref()
+                .map(|n| format!(" — {n}"))
+                .unwrap_or_default()
+        );
+    }
+    for finding in &collected.secrets {
+        println!(
+            "  secret     {}:{} {}",
+            paths::contract(&finding.file),
+            finding.line,
+            finding.what
+        );
+    }
+    for reference in &collected.dangling {
+        println!(
+            "  dangling   {}:{} → {} ({:?})",
+            paths::contract(&reference.from),
+            reference.line,
+            reference.raw,
+            reference.verdict
+        );
+    }
+    for warning in &collected.warnings {
+        println!("  warning    {warning}");
+    }
+    println!("→ {}", out.display());
+
+    if !yes && !confirm("write")? {
+        println!("nothing written");
+        return Ok(());
+    }
+    for note in apply::write::write_bundle(&collected, &out, git)? {
+        println!("  {note}");
+    }
+    println!("wrote {} — {} files", out.display(), collected.files.len());
+    Ok(())
+}
+
+/// Files per top-level directory in the bundle, in the order they will appear in it.
+fn counts(collected: &scan::Collected) -> Vec<(String, usize)> {
+    let mut counts: Vec<(String, usize)> = Vec::new();
+    for (_, relative) in &collected.files {
+        let directory = relative
+            .parent()
+            .map(|p| {
+                p.components()
+                    .take(2)
+                    .collect::<std::path::PathBuf>()
+                    .display()
+                    .to_string()
+            })
+            .unwrap_or_default();
+        match counts.iter_mut().find(|(name, _)| *name == directory) {
+            Some((_, count)) => *count += 1,
+            None => counts.push((directory, 1)),
+        }
+    }
+    counts
+}
+
+// --- collect end ---
 
 fn list() -> Result<()> {
     let ledger = Ledger::load()?;

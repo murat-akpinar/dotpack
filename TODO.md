@@ -80,6 +80,20 @@ Answered, recorded here so they stop being re-asked:
   the only way out of `rm`'s refusal without inventing a verb the design's table does not
   have.
 
+- **Where `collect` writes** → **`~/dotfiles` by default**, `--out` overrides, a
+  non-empty directory is refused. The TUI's 1/5 screen has to prefill an output path
+  anyway, so the default exists either way; making the CLI reject it only puts the same
+  default in two places. The refusal points at `collect --external` (M5), because a
+  non-empty `~/dotfiles` usually means chezmoi or stow already lives there.
+- **What `collect` selects with no arguments** → **the pre-ticked set**: the WM's own
+  directory plus the ones its config starts or points at. Arguments override it. Making
+  arguments mandatory would leave the wizard's "WM-related ones pre-ticked" (§4.1 screen
+  2/5) with no caller until M6, which is the doing-it-twice the plan exists to avoid.
+- **Shipping a theme or an icon set** → **no.** Fonts ship (they are small, and a missing
+  Nerd Font turns every icon in the bar into a box); a theme or cursor that no package
+  provides becomes a `components` entry with its path and a warning. Papirus is 100 MB,
+  and `example/`'s own cursor is a manual step for exactly this reason.
+
 **Earlier:**
 
 - **License** → GPL-3.0, `LICENSE` committed. The `MIT` in the doc examples is a
@@ -217,20 +231,47 @@ Stops the bundle from having to be hand-written.
 - [x] `pkg.rs` — the primitives moved here from M1: `-Qoq`, `-Qqem`, `pacman -F` with
       `-Fy` detection, and `which` without a shell. `/usr/local/bin/starship` resolves
       without the files database, because `pacman -Si starship` answers first
-- [ ] `scan/fonts.rs` — `fc-match`, compare the returned family, warn if it fell back
-- [ ] `scan/fonts.rs` — `-Qoq` → **`pacman -F <basename>`** → ship the files, in that order
-- [ ] `scan/fonts.rs` — GTK theme / icons / cursor, same three steps
+- [x] `scan/fonts.rs` — `fc-match`, compare the returned family, warn if it fell back.
+      On this machine it earns its keep immediately: `settings.conf` asks for
+      `CaskaydiaMono Nerd Font Mono SemiBold` and fontconfig quietly answers `Noto Sans Mono`
+- [x] `scan/fonts.rs` — `-Qoq` → **`pacman -F <basename>`** → ship the files, in that order
+- [x] `scan/fonts.rs` — GTK theme / icons / cursor, same three steps, keyed on
+      `<dir>/index.theme` rather than the directory: `/usr/share/icons/Adwaita` has two
+      owners (`adwaita-cursors` and `adwaita-icon-theme`), `index.theme` has one
 - [x] `scan/secrets.rs` — deny-list (including shell history)
 - [x] `scan/secrets.rs` — content patterns, matched at a token boundary so `disk-usage` is
       not an OpenAI key. Unticking by default is the collect wizard's job (M6); the
       scanner returns findings and decides nothing
 - [x] `scan/secrets.rs` — the same scan runs against the **active bundle** for `ls`
-- [ ] `apply/write.rs::write_bundle()` — the bundle directory + `dotfiles.toml`
+- [x] `apply/write.rs::write_bundle()` — the bundle directory + `dotfiles.toml`
       (`README.md` is added in M3, where its renderer is written)
-- [ ] `ignore` applies **here and only here**, and the "matches nothing" warning is
+- [x] `ignore` applies **here and only here**, and the "matches nothing" warning is
       checked against the source tree, never against a bundle
-- [ ] `sync` write-back — the deferred half of M1, now that `secrets.rs` exists
-- [ ] collect must not walk into the active bundle through its own symlinks
+- [x] `sync` write-back — the deferred half of M1. A finding in the detached file
+      **refuses** the write-back and says which line: this is the only path by which a
+      file enters a bundle after `collect`, so it must not be the hole in §6
+- [x] collect must not walk into the active bundle through its own symlinks
+
+✅ Done, and the honest score against the sentence below. `collect` on this machine
+writes 176 files and 38 packages; every package carries the line that suggested it.
+
+- ✅ `quickshell`, not the local `noctalia-qs` provide. Two more the same rule caught:
+  `matugen` instead of `matugen-bin` and `code` instead of `visual-studio-code-bin` —
+  both better than what the hand-written `example/` says.
+- ✅ `config/kitty/catppuccin.conf`, which the hand-written manifest forgot.
+- ⚠ `ttf-cascadia-mono-nerd` **only with `pacman -Fy`.** There is no files database on
+  this machine, so the chain degrades to step 3 exactly as §5.2 says it does: the font
+  files ship inside the bundle and a warning names the reason.
+- ⚠ `starship` is not found, and correctly so: nothing in the *selected* directories
+  names it. It lives in fish's prompt, and `fish/` is not part of the hyprland scan's
+  pre-tick. Ticking it would find it.
+
+Five false positives were found by running it and reading every line, not by reasoning:
+`~/.config/zen` (2252 files, pre-ticked because `zen-browser` starts with `zen`),
+`texinfo` (from `info=$(bluetoothctl …)`, where the command is what follows `$(`),
+`llvm` (from `if not …` in a **python** file read as a shell script), `binutils`
+(from `as` inside a quoted jq program), and seven neovim `require "nvchad.options"`
+lines reported as dead references (a Lua module is not a path).
 
 **Done means:** `collect` run on this machine, with the same directories ticked, produces
 a bundle whose `dotfiles.toml` **matches `example/`'s** — `ttf-cascadia-mono-nerd` and

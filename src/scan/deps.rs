@@ -3,7 +3,7 @@
 //! This produces **suggestions, it does not decide**. The goal is to replace "remember
 //! 40 packages from scratch" with "weed 5 lines out of the 45 offered".
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use crate::manifest::Wm;
@@ -71,6 +71,13 @@ const NOISE: &[&str] = &[
     "diffutils",
     "gzip",
     "tar",
+    // The toolchain. A rice never needs an assembler at runtime, and `as`, `not` and
+    // `info` are all real binaries that a stray word in a quoted jq program lands on.
+    "binutils",
+    "llvm",
+    "clang",
+    "gcc",
+    "texinfo",
 ];
 
 #[derive(Debug, PartialEq)]
@@ -180,9 +187,25 @@ fn candidates(files: &[PathBuf], rules: &Rules) -> BTreeMap<String, String> {
         };
         // The user's own scripts carry dependencies too, and there are usually more of
         // them than there are exec lines.
-        let script = file.extension().is_some_and(|e| e == "sh") || text.starts_with("#!");
+        // A shell script only. `#!/usr/bin/env python` read in first-token mode turns
+        // `if not os.path.exists(d):` into a suggestion of llvm, which ships /usr/bin/not.
+        let shell = ["sh", "bash", "zsh", "fish"];
+        let script = file
+            .extension()
+            .is_some_and(|e| shell.iter().any(|s| e == *s))
+            || text
+                .lines()
+                .next()
+                .is_some_and(|l| l.starts_with("#!") && shell.iter().any(|s| l.ends_with(s)));
+        // A rice's scripts define `info()`, `error()`, `log()` — names that are also real
+        // binaries (texinfo ships /usr/bin/info). Without this, every call to one of them
+        // suggests a package the rice has never needed.
+        let functions = functions_in(&text);
         for (index, line) in text.lines().enumerate() {
             for command in line_commands(line, script, rules) {
+                if functions.contains(&command) {
+                    continue;
+                }
                 found
                     .entry(command)
                     .or_insert_with(|| format!("{}:{}", paths::contract(file), index + 1));
@@ -222,7 +245,10 @@ fn line_commands(line: &str, script: bool, rules: &Rules) -> Vec<String> {
 
     values
         .iter()
-        .flat_map(|value| value.split(['|', ';', '&']))
+        // `$(` opens a new command: in `info=$(bluetoothctl info "$mac")` the command is
+        // bluetoothctl, and the `info` in front of it is a variable being assigned.
+        .flat_map(|value| value.split(['|', ';', '&', '`']))
+        .flat_map(|value| value.split("$("))
         .filter_map(bare_command)
         .collect()
 }
@@ -245,6 +271,26 @@ fn bare_command(segment: &str) -> Option<String> {
         return Some(token.to_string());
     }
     None
+}
+
+/// `name() {` and `function name {`, which is every shell function definition that
+/// matters here.
+fn functions_in(text: &str) -> BTreeSet<String> {
+    let mut names = BTreeSet::new();
+    for line in text.lines() {
+        let line = line.trim();
+        let line = line.strip_prefix("function ").unwrap_or(line);
+        if let Some((name, rest)) = line.split_once('(')
+            && rest.trim_start().starts_with(')')
+            && !name.is_empty()
+            && name
+                .chars()
+                .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+        {
+            names.insert(name.trim().to_string());
+        }
+    }
+    names
 }
 
 fn file_name(path: &Path) -> String {
@@ -288,7 +334,8 @@ mod tests {
                 true,
                 &super::super::wm::rules(Wm::Hyprland)
             ),
-            ["grim", "satty"]
+            ["grim", "slurp", "satty"],
+            "three, not two: the command inside `$(…)` is a dependency like any other"
         );
     }
 

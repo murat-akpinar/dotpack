@@ -275,3 +275,45 @@ fn assert_same(before: &BTreeMap<String, String>, after: &BTreeMap<String, Strin
         differences.join("\n")
     );
 }
+
+/// The one case links do not cover: an application deleted our link and wrote a real file
+/// in its place. `sync` puts that version into the bundle and links again — unless doing
+/// so would put a secret in a repo that is probably public.
+#[test]
+fn sync_writes_a_detached_file_back() {
+    let env = TestEnv::new("sync");
+    let b = env.bundle_b();
+    env.run(&["use", b.to_str().unwrap(), "-y"]);
+
+    // What GTK and VS Code do: unlink, then write.
+    let target = env.home.join(".testrc");
+    std::fs::remove_file(&target).unwrap();
+    std::fs::write(&target, "export B=2\n").unwrap();
+
+    let out = env.try_run(&["ls"]);
+    assert!(
+        String::from_utf8_lossy(&out.stdout).contains("1 detached"),
+        "ls has to show it: {}",
+        String::from_utf8_lossy(&out.stdout)
+    );
+
+    env.run(&["sync"]);
+    assert_eq!(
+        std::fs::read_to_string(b.join("home/.testrc")).unwrap(),
+        "export B=2\n",
+        "the application's version is now the bundle's"
+    );
+    assert!(target.is_symlink(), "and the link is back");
+
+    // Now the same thing, with a token in it.
+    std::fs::remove_file(&target).unwrap();
+    std::fs::write(&target, "export GH_TOKEN=ghp_abcdef1234567890\n").unwrap();
+    let out = env.try_run(&["sync"]);
+    let said = String::from_utf8_lossy(&out.stdout).to_string();
+    assert!(said.contains("NOT written back"), "{said}");
+    assert_eq!(
+        std::fs::read_to_string(b.join("home/.testrc")).unwrap(),
+        "export B=2\n",
+        "the bundle is unchanged"
+    );
+}

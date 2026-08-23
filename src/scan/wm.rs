@@ -60,6 +60,11 @@ pub fn detect() -> Option<Wm> {
     }
 }
 
+/// `--wm hyprland` and the session variables both land here.
+pub fn parse(value: &str) -> Option<Wm> {
+    from_name(&value.to_ascii_lowercase())
+}
+
 fn from_name(value: &str) -> Option<Wm> {
     if value.contains("hyprland") {
         Some(Wm::Hyprland)
