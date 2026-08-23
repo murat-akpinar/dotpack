@@ -49,11 +49,6 @@ tool behind.
 
 ## Phase 0 — Answer before writing code
 
-- [ ] **If package installation blows up during `use`** — finish the switch or roll it back?
-      (Rolling back requires the ledger to be transactional; it changes M1's shape.)
-- [ ] **Local-path bundles** — a symlink in the store, or an absolute path in `state.toml`?
-- [ ] **When deleting the active bundle** — is `use -` required first, or is it deactivated automatically?
-- [ ] **Switching while the active bundle's git has uncommitted changes** — warn or block?
 - [ ] **Where `collect` writes** — is `~/dotfiles/` the default, or is `--out` mandatory? (M2)
 - [ ] **A half-finished collect wizard** — save state for `--resume`, or start over? (M6)
 - [ ] **`/` search** — filter the list, or jump to the match? (M6)
@@ -62,6 +57,23 @@ tool behind.
 
 Answered, recorded here so they stop being re-asked:
 
+**The four that shaped M1:**
+
+- **Package installation fails during `use`** → **finish the switch, report, do not roll
+  back.** Rolling back needs a transactional ledger, which is the single largest piece of
+  complexity M1 could take on — for a state that is already harmless. Packages are never
+  removed, so "some packages missing, links correct" is a working switch with a gap, and
+  re-running `use` closes it with `--needed`. The summary names every failure.
+- **Local-path bundles** → **a symlink in the store.** Everything under `bundles/` is then
+  a directory and `ls` / `use` / `rm` have one code path. An absolute path in `state.toml`
+  adds a second resolution branch to every one of them, to save one symlink.
+- **Deleting the active bundle** → **refuse, and say `use -` first.** Deactivating on the
+  user's behalf is destruction they did not ask for.
+- **Uncommitted changes on switch** → **warn, do not block.** It is their repo, and in
+  symlink mode their edits are already in it — switching away loses nothing.
+
+**Earlier:**
+
 - **License** → GPL-3.0, `LICENSE` committed. The `MIT` in the doc examples is a
   *bundle's* own license field, not the project's.
 - **`name` uniqueness** → it is the store directory name; `--as` renames on collision.
@@ -69,9 +81,10 @@ Answered, recorded here so they stop being re-asked:
 - **git URLs in v1** → yes, `add`/`use` take them (M4).
 - **`README.md`** → `collect` generates it, from the same renderer as `post` (M3).
 
-The first four are the ones that shape M1. **This is the only list** — the per-document
-"Open Decisions" sections are gone, because keeping five of them is how three of these
-came to be answered elsewhere without anyone striking them out.
+Nothing above blocks M0 or M1 any more; the remaining five are M2 and M6 questions.
+**This is the only list** — the per-document "Open Decisions" sections are gone, because
+keeping five of them is how three of these came to be answered elsewhere without anyone
+striking them out.
 
 ---
 
@@ -112,21 +125,28 @@ the repo. No `collect`, no ecosystem, nobody else's repo required.
 - [ ] Package not found → search the AUR → ask → otherwise report and continue
 - [ ] **Never run `-Syu`**
 
-### Apply (the only writing module)
-- [ ] `apply.rs` — the `state.toml` link ledger: links, `mkdirs`, `hooks_ran`
-- [ ] `apply.rs` — backup adoption: a real file at the target → backup + ledger entry
-- [ ] `apply.rs` — place links (`config/` by depth rule, `home/`+`local/` per file)
-- [ ] `apply.rs` — create intermediate dirs, record them, remove them when left empty
-- [ ] `apply.rs` — link diff for switching: remove / repoint / add
-- [ ] `apply.rs` — restore the adopted backup when a link is removed for good
-- [ ] `apply.rs` — `fc-cache -f` when anything under `~/.local/share/fonts` changed
-- [ ] `apply.rs` — services: `enable --now`, and `disable --now` on the way out
-- [ ] `apply.rs` — WM reload
+### Apply (the only writing module — `src/apply/`, see `design.md` §8)
+- [ ] `apply/ledger.rs` — `state.toml`: `active`, `previous`, links, `mkdirs`, `hooks_ran`
+- [ ] `apply/backup.rs` — adoption: a real file at the target → backup + ledger entry
+- [ ] `apply/backup.rs` — restore the adopted backup when a link is removed for good
+- [ ] `apply/links.rs` — place links (`config/` by depth rule, `home/`+`local/` per file)
+- [ ] `apply/links.rs` — create intermediate dirs, record them, remove them when left empty
+- [ ] `apply/links.rs` — link diff for switching: remove / repoint / add
+- [ ] `apply/system.rs` — `fc-cache -f` when anything under `~/.local/share/fonts` changed
+- [ ] `apply/system.rs` — services: `enable --now`, and `disable --now` on the way out
+- [ ] `apply/system.rs` — WM reload
+- [ ] `apply/mod.rs` — the sequences, and **nothing else**: `activate()` / `switch()` /
+      `deactivate()` read as `design.md` §4.2 and `profiles.md` §3 do
+- [ ] A package failing does **not** roll the switch back (Phase 0) — it is collected and
+      named in the summary
+- [ ] A local-path bundle is a **symlink in the store** (Phase 0), so `ls`/`use`/`rm` see
+      a directory like any other
 - [ ] `hooks_ran` is written to the ledger but stays empty — **hooks do not run until M4.**
       `example/` has none, so M1's fixture is unaffected; a bundle that has one gets it
       skipped, and the plan says so rather than pretending
 - [ ] `use -` (previous bundle)
 - [ ] `ls` — bundles in the store, which is active, detached count
+- [ ] `rm <name>` — refuses while the bundle is active, says `use -` first (Phase 0)
 - [ ] `sync` — detect detached links, report them, and re-link (backing up the foreign file)
 - [ ] `refs.rs` is **not** needed here — M1 installs a bundle, it does not judge one
 
@@ -168,7 +188,7 @@ Stops the bundle from having to be hand-written.
 - [ ] `scan/secrets.rs` — deny-list (including shell history)
 - [ ] `scan/secrets.rs` — content patterns, findings unticked by default
 - [ ] `scan/secrets.rs` — the same scan runs against the **active bundle** for `ls`
-- [ ] `apply.rs::write_bundle()` — the bundle directory + `dotfiles.toml`
+- [ ] `apply/write.rs::write_bundle()` — the bundle directory + `dotfiles.toml`
       (`README.md` is added in M3, where its renderer is written)
 - [ ] `ignore` applies **here and only here**, and the "matches nothing" warning is
       checked against the source tree, never against a bundle

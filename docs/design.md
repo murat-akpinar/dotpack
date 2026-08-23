@@ -598,7 +598,13 @@ dotpack/
     │   ├── fonts.rs     # fc-match → -Qoq → -F → ship  (§5.2)
     │   ├── roles.rs     # package → role table (fills in components)
     │   └── secrets.rs   # deny-list + content scan
-    ├── apply.rs         # THE ONLY WRITER: back up, link, write bundles, services, hooks
+    ├── apply/           # THE ONLY WRITER — nothing outside this directory touches the disk
+    │   ├── mod.rs       # the sequences only: activate(), switch(), deactivate()  (§4.2, §4.3)
+    │   ├── ledger.rs    # state.toml — active, previous, links, mkdirs, hooks_ran
+    │   ├── links.rs     # place / remove / repoint, and the mkdirs bookkeeping
+    │   ├── backup.rs    # adopt a real file into backups/, restore it on the way out
+    │   ├── system.rs    # services, fc-cache, WM reload, hooks
+    │   └── write.rs     # write_bundle() — collect's output  (§4.1)
     ├── post.rs          # components → shareable list + generated README
     └── tui/
         ├── mod.rs       # event loop, screen routing
@@ -606,14 +612,34 @@ dotpack/
         └── screens/     # one file per screen  → tui.md
 ```
 
-The split is clear: `scan/` only **reads and produces suggestions**, `apply.rs` only
+The split is clear: `scan/` only **reads and produces suggestions**, `apply/` only
 **writes**, `tui/` only **displays and lets the user choose**. No scan function writes to
 disk — both testability and the "accidentally break something" risk depend on this.
 
+**`apply/` is a directory and not a file for one reason: it was going to be the only long
+one.** Counting the work assigned to it — ledger, backup adoption, link placement, the
+mkdirs record, the switch diff, backup restore, `fc-cache`, services, WM reload, hooks,
+`write_bundle()` — it carries twelve jobs where no other module carries more than eight.
+Split at design time this is free; split at 700 lines it is a day. `mod.rs` holds nothing
+but the sequences, so §4.2's thirteen steps and [profiles.md](./profiles.md)'s ten-step
+`use B` stay readable as the code that runs them.
+
+Being a directory also makes the one-writer rule checkable instead of merely stated:
+
+```bash
+grep -rlE 'fs::(write|copy|create_dir|remove|rename)|symlink|OpenOptions' src/ \
+  | grep -v '^src/apply/'          # any output means the invariant is broken
+```
+
+Nothing else gets pre-split. `manifest.rs` will land near 300 lines and stays one file —
+it is one subject, and cutting it into types-here / validation-there answers a question
+nobody asked. The measure is not line count, it is whether the file's job fits in one
+sentence.
+
 Two consequences that are easy to get wrong on day one:
 
-- **`collect`'s output is written by `apply.rs` as well** (`write_bundle()`), not by
-  `scan/` and not by a `collect.rs`. `collect` is a scan that produces a plan; the plan is
+- **`collect`'s output is written by `apply/` as well** (`write.rs::write_bundle()`), not
+  by `scan/` and not by a `collect.rs`. `collect` is a scan that produces a plan; the plan is
   applied. One writer, no exceptions — otherwise the invariant is false the first time a
   bundle is created.
 - **`paths.rs` is the only place `HOME` is read.** M1's acceptance test runs the whole

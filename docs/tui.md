@@ -253,7 +253,7 @@ Reasons:
    not our summary.
 
 `ponytail:` there is no in-TUI progress panel — pacman's own output streams. If an embedded
-view is genuinely wanted, `apply.rs` already streams line by line, so adding a panel is easy.
+view is genuinely wanted, `apply/system.rs` already streams line by line, so adding a panel is easy.
 
 ---
 

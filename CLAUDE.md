@@ -28,10 +28,12 @@ commit messages. The user writes in Turkish; the files do not.
 
 ## Invariants — do not violate
 
-1. **`scan/` never writes to disk.** It reads and returns suggestions. `apply.rs` is
-   the only module that mutates the filesystem — **including `collect`'s output**
-   (`apply::write_bundle()`). A `collect.rs` that writes its own files makes this
-   invariant false on day one.
+1. **`scan/` never writes to disk.** It reads and returns suggestions. `src/apply/` is
+   the only place that mutates the filesystem — **including `collect`'s output**
+   (`apply::write::write_bundle()`). A `collect.rs` that writes its own files makes this
+   invariant false on day one. The rule is greppable, so keep it that way:
+   `grep -rlE 'fs::(write|copy|create_dir|remove|rename)|symlink' src/ | grep -v '^src/apply/'`
+   must print nothing.
 2. **Nothing is destroyed without a backup.** Any real file at a target path is moved
    to `~/.local/state/dotpack/backups/<timestamp>/` and recorded in the ledger
    so it can be restored.

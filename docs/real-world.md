@@ -218,7 +218,7 @@ chezmoi encodes permissions in the file name. In this repo:
 | `readonly_` | 11 | `chmod 444` |
 
 There are 56 executable scripts — if the bit is lost, the rice breaks silently. For us this
-problem is **solved for free by git** (the exec bit is tracked), but `apply.rs` **must**
+problem is **solved for free by git** (the exec bit is tracked), but `apply/` **must**
 preserve mode bits while copying — `fs::copy` does that, an implementation that calls
 `write` by hand does not.
 
