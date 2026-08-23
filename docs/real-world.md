@@ -271,6 +271,42 @@ design, now confirmed).
 
 ---
 
+## Third Case — The Machine This Was Designed On
+
+[ilyamiro/imperative-dots](https://github.com/ilyamiro/imperative-dots), customized. The
+installer-script type again, and a bigger one: **1898 lines of bash**, with a 71-package
+array hardcoded at line 157, a `pacman -Sy`, a `chsh`, root services enabled with sudo,
+and a telemetry id written to a version file. The bundle form of this rice lives in
+[`example/`](../example/) — 72 lines of TOML for the same rice.
+
+### F17 — The dependency chain dead-ends on things no package owns
+
+Running the documented chain over this machine, three of the rice's components returned
+nothing from `pacman -Qoq`:
+
+| Component | Where it actually is |
+|---|---|
+| `starship` | `/usr/local/bin/starship` — installed by its own curl script |
+| terminal font | `~/.local/share/fonts/CascadiaMono/…` — hand-installed Nerd Font |
+| cursor theme | `~/.local/share/icons/Bibata-Modern-Ice` — hand-installed |
+
+§5 of the design assumed `fc-match` → file → `pacman -Qoq` closes the loop, and
+`gtk-3.0/settings.ini` → `/usr/share/icons` → package likewise. Neither holds when the
+user installed the thing by hand — which for Nerd Fonts is the common case.
+
+→ Not a new field: `components` already carries `url` for exactly this, and the fonts and
+icons belong in `local/share/fonts/` and `local/share/icons/`, shipped by the bundle. But
+the scan must **say so** instead of silently dropping the component: "no package owns
+this, it will be shipped as a file / declared as a url".
+
+### F18 — Preview media, again, in a live rice
+
+23 MB of the 27 MB `scripts/quickshell/` tree is `guide/previews/*.png`. Third repo out of
+three carrying screenshots inside the config tree. The default `ignore` list earns its
+place.
+
+---
+
 ## Comparing The Two Types
 
 | | CyberArch (installer-script) | Brozi (chezmoi) |
@@ -324,3 +360,4 @@ This should be recorded: **the format's value depends on bundles existing in the
 - [x] `add` will do a shallow clone → `TODO.md` M3
 - [x] `-Syu` will never be run → the invariants in `CLAUDE.md`
 - [x] Repo outside the format → clear error; `import` deferred to v2 → `TODO.md`
+- [x] Components no package owns → warn, do not drop → `design.md` §5, `TODO.md` M2

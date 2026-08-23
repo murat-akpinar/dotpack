@@ -116,6 +116,8 @@ it, filling in the format becomes a gain rather than a chore.
 - [ ] `scan/roles.rs` — package → role table (~40 lines), fill in `components`
 - [ ] `scan/fonts.rs` — `fc-match`, warn "font missing" if the returned family does not match
 - [ ] `scan/fonts.rs` — GTK theme / icons / cursor → `/usr/share/{themes,icons}` → package
+- [ ] `scan/fonts.rs` — no owning package (hand-installed under `~/.local/share`) → warn and
+      ship the files, do not drop the component (`docs/real-world.md` F17)
 - [ ] `post.rs` — `components` → a shareable list
 - [ ] `post.rs` — `--format reddit|markdown|plain`
 - [ ] `post.rs` — copy to clipboard (`wl-copy` / `xclip`, whichever exists)

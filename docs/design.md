@@ -279,6 +279,11 @@ look at **the next token**.
   captured as a package, so the user is asked.
 - `~/.config/gtk-3.0/settings.ini` → theme/icon/cursor names → the matching directory
   under `/usr/share/themes`, `/usr/share/icons` → `pacman -Qoq`
+- Both chains dead-end when the user installed the font or theme by hand — under
+  `~/.local/share/fonts` or `~/.local/share/icons`, owned by no package. That is the
+  common case for Nerd Fonts ([real-world.md](./real-world.md) F17). The scan says so
+  rather than dropping the component: it goes into `components` with a `url`, and the
+  files ship in `local/share/`.
 
 ### Accuracy expectations
 
