@@ -208,6 +208,13 @@ fn list() -> Result<()> {
                     if detached > 0 {
                         state.push_str(&format!(" · {detached} detached"));
                     }
+                    // In symlink mode the active bundle's files are the ones being
+                    // edited, so a token added the day after `collect` is seen by nothing
+                    // unless this looks too (design.md §6).
+                    let secrets = scan::secrets::scan(&b.files()).len();
+                    if secrets > 0 {
+                        state.push_str(&format!(" · {secrets} secret"));
+                    }
                 }
                 println!(
                     "{} {name:<24} {:<9} {count:>3} packages   {state}",

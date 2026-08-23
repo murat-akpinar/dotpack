@@ -4,3 +4,4 @@
 #![allow(dead_code)]
 
 pub mod refs;
+pub mod secrets;

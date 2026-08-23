@@ -42,6 +42,19 @@ impl Bundle {
         links(&self.root)
     }
 
+    /// Every file the bundle ships, for the scans that read it whole. `.git` is skipped:
+    /// scanning a repo's object store is minutes of work and zero findings.
+    pub fn files(&self) -> Vec<PathBuf> {
+        WalkDir::new(&self.root)
+            .sort_by_file_name()
+            .into_iter()
+            .filter_entry(|e| e.file_name() != ".git")
+            .filter_map(Result::ok)
+            .filter(|e| !e.file_type().is_dir())
+            .map(|e| e.into_path())
+            .collect()
+    }
+
     /// `assets` are **copied**, never linked, so they are not part of `links()`.
     ///
     /// ponytail: no caller yet. design.md §4.2's sequence has no step that copies them

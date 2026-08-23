@@ -214,9 +214,11 @@ Stops the bundle from having to be hand-written.
 - [ ] `scan/fonts.rs` — `fc-match`, compare the returned family, warn if it fell back
 - [ ] `scan/fonts.rs` — `-Qoq` → **`pacman -F <basename>`** → ship the files, in that order
 - [ ] `scan/fonts.rs` — GTK theme / icons / cursor, same three steps
-- [ ] `scan/secrets.rs` — deny-list (including shell history)
-- [ ] `scan/secrets.rs` — content patterns, findings unticked by default
-- [ ] `scan/secrets.rs` — the same scan runs against the **active bundle** for `ls`
+- [x] `scan/secrets.rs` — deny-list (including shell history)
+- [x] `scan/secrets.rs` — content patterns, matched at a token boundary so `disk-usage` is
+      not an OpenAI key. Unticking by default is the collect wizard's job (M6); the
+      scanner returns findings and decides nothing
+- [x] `scan/secrets.rs` — the same scan runs against the **active bundle** for `ls`
 - [ ] `apply/write.rs::write_bundle()` — the bundle directory + `dotfiles.toml`
       (`README.md` is added in M3, where its renderer is written)
 - [ ] `ignore` applies **here and only here**, and the "matches nothing" warning is
