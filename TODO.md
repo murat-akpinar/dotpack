@@ -198,7 +198,7 @@ content.
 Stops the bundle from having to be hand-written.
 
 ### Scan (reads only)
-- [ ] `scan/wm.rs` — WM detection + per-WM key tables
+- [x] `scan/wm.rs` — WM detection + per-WM key tables
 - [x] `scan/refs.rs` — extractor 1: `source` / `include` / `@import`, **not WM-specific**
 - [x] `scan/refs.rs` — extractor 2: any `~/`, `$HOME/`, `$(dirname …)/` token, **anywhere on
       the line** — over `example/` it extracts 82 references against the keyword table's 6
@@ -206,11 +206,17 @@ Stops the bundle from having to be hand-written.
       unresolved, with the three exclusions. How many survive classification on a real
       machine is checked when `collect` wires it up — that needs a HOME whose `.config`
       *is* the rice
-- [ ] `scan/deps.rs` — extract commands, strip the `uwsm app --` / `sh -c` wrappers
-- [ ] `scan/deps.rs` — drop builtin and coreutils noise
-- [ ] `scan/deps.rs` — attach a `reason` to every suggestion
-- [ ] `scan/deps.rs` — `-Qoq` may return a **provider** (`noctalia-qs` for `quickshell`):
+- [x] `scan/deps.rs` — extract commands, strip the `uwsm app --` / `sh -c` wrappers, and
+      split pipelines: `grim … | satty` is two dependencies
+- [x] `scan/deps.rs` — drop noise **by owning package** (`coreutils`, `systemd`, …) rather
+      than by a list of command names. Shorter and more accurate: it drops `sleep` and
+      `pkill` without naming them and keeps `notify-send`, which a hand-written list eats
+- [x] `scan/deps.rs` — attach a `reason` to every suggestion
+- [x] `scan/deps.rs` — `-Qoq` may return a **provider** (`noctalia-qs` for `quickshell`):
       offer the installable name, never conclude "no such package" from `pacman -Ss`
+- [x] `pkg.rs` — the primitives moved here from M1: `-Qoq`, `-Qqem`, `pacman -F` with
+      `-Fy` detection, and `which` without a shell. `/usr/local/bin/starship` resolves
+      without the files database, because `pacman -Si starship` answers first
 - [ ] `scan/fonts.rs` — `fc-match`, compare the returned family, warn if it fell back
 - [ ] `scan/fonts.rs` — `-Qoq` → **`pacman -F <basename>`** → ship the files, in that order
 - [ ] `scan/fonts.rs` — GTK theme / icons / cursor, same three steps

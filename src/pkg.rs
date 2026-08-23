@@ -1,5 +1,7 @@
 //! pacman and the AUR helper — the only module that installs anything system-wide.
 
+use std::collections::BTreeSet;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::{Context, Result, bail};
@@ -128,6 +130,76 @@ fn unsatisfied(packages: &[String]) -> Result<Vec<String>> {
             String::from_utf8_lossy(&out.stderr).trim()
         ),
     }
+}
+
+/// The package that owns a file. It can answer with a name that is **not** the command
+/// and that is not an error: `/usr/bin/quickshell` is owned by `noctalia-qs`, which
+/// *provides* `quickshell` (design.md §5).
+pub fn owner(path: &Path) -> Option<String> {
+    let out = Command::new("pacman").arg("-Qoq").arg(path).output().ok()?;
+    out.status
+        .success()
+        .then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
+}
+
+/// Can this name be installed from a repo anywhere? `pacman -Si` resolves provides; `-Ss`
+/// searches names and descriptions only, so concluding "no such package" from it is wrong.
+pub fn in_repos(name: &str) -> bool {
+    not_in_repos(std::slice::from_ref(&name.to_string())).is_ok_and(|missing| missing.is_empty())
+}
+
+/// Installed from outside the repos — the AUR set on this machine.
+pub fn foreign() -> BTreeSet<String> {
+    Command::new("pacman")
+        .args(["-Qqem"])
+        .output()
+        .map(|out| {
+            String::from_utf8_lossy(&out.stdout)
+                .lines()
+                .map(|l| l.trim().to_string())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// The package that *ships* a file, looked up by basename — the answer for a font or a
+/// binary installed by hand that a repo carries all along.
+pub enum FileSearch {
+    Ships(String),
+    Nothing,
+    /// `pacman -Fy` has never been run here, so the question cannot be asked.
+    NoDatabase,
+}
+
+pub fn ships_file(basename: &str) -> FileSearch {
+    let Ok(out) = Command::new("pacman")
+        .env("LC_ALL", "C")
+        .arg("-F")
+        .arg(basename)
+        .output()
+    else {
+        return FileSearch::Nothing;
+    };
+    if String::from_utf8_lossy(&out.stderr).contains("-Fy") {
+        return FileSearch::NoDatabase;
+    }
+    // `repo/name version\n    usr/bin/thing` — the package name is the second field of
+    // the first line.
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .next()
+        .and_then(|l| l.split_whitespace().next())
+        .and_then(|full| full.split('/').nth(1))
+        .map(|name| FileSearch::Ships(name.to_string()))
+        .unwrap_or(FileSearch::Nothing)
+}
+
+/// `command -v`, without a shell.
+pub fn which(command: &str) -> Option<PathBuf> {
+    std::env::var("PATH").ok()?.split(':').find_map(|dir| {
+        let candidate = Path::new(dir).join(command);
+        candidate.is_file().then_some(candidate)
+    })
 }
 
 pub fn helper() -> Option<String> {

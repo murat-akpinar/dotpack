@@ -3,5 +3,7 @@
 // ponytail: `collect` is the caller and lands later in M2. Delete this when it does.
 #![allow(dead_code)]
 
+pub mod deps;
 pub mod refs;
 pub mod secrets;
+pub mod wm;

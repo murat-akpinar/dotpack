@@ -193,7 +193,7 @@ fn verdict(path: &Option<PathBuf>, shipped: &BTreeSet<&Path>) -> Verdict {
 
 /// Text only — a font or a screenshot has no references in it, and reading one as UTF-8
 /// is how a scan turns into noise.
-fn read_text(file: &Path) -> Option<String> {
+pub(crate) fn read_text(file: &Path) -> Option<String> {
     let bytes = std::fs::read(file).ok()?;
     if bytes.iter().take(1024).any(|b| *b == 0) {
         return None;
