@@ -92,21 +92,27 @@ striking them out.
 
 Not usable alone; everything depends on it.
 
-- [ ] `cargo init --bin`, edition 2024, 7 crates (`CLAUDE.md`)
-- [ ] `paths.rs` — HOME / store / state / backups, the **only** place `env::var("HOME")` appears
-- [ ] `manifest.rs` — `dotfiles.toml` serde types, read/write
-- [ ] `manifest.rs` — `components`, short and long (inline table) forms
-- [ ] `manifest.rs` — validation: hard error / warning split (`docs/manifest.md`)
-- [ ] `manifest.rs` — warn if a `components[].pkg` is missing from `packages`
-- [ ] `bundle.rs` — path mapping (`config/` → `~/.config`, `home/`, `local/`, `assets/`)
-- [ ] `bundle.rs` — **the link depth rule** for `config/`: stop at the first directory containing files
-- [ ] `bundle.rs` — `home/` and `local/` link **per file**, no depth rule
-- [ ] `bundle.rs` — reject hook/asset paths escaping the bundle root
-- [ ] `main.rs` — clap subcommands (empty bodies)
-- [ ] The default ignore list, embedded
+- [x] `cargo init --bin`, edition 2024 — **5 crates**: `ratatui` + `crossterm` are not
+      imported by anything until M6, so they are added there
+- [x] `paths.rs` — HOME / store / state / backups, the **only** place `env::var("HOME")` appears
+- [x] `manifest.rs` — `dotfiles.toml` serde types, read/write
+- [x] `manifest.rs` — `components`, short and long (inline table) forms
+- [x] `manifest.rs` — validation: hard error / warning split (`docs/manifest.md`)
+- [x] `manifest.rs` — warn if a `components[].pkg` is missing from `packages`
+- [x] `bundle.rs` — path mapping (`config/` → `~/.config`, `home/`, `local/`, `assets/`)
+- [x] `bundle.rs` — **the link depth rule** for `config/`: stop at the first directory containing files
+- [x] `bundle.rs` — `home/` and `local/` link **per file**, no depth rule
+- [x] `bundle.rs` — reject hook/asset paths escaping the bundle root
+- [x] `main.rs` — clap subcommands (empty bodies)
+- [x] The default ignore list, embedded
 
 **Done means:** a hand-written `dotfiles.toml` survives a read → write round trip
 unchanged; every invalid example in `docs/manifest.md` is rejected at the right severity.
+
+✅ Done. `example/dotfiles.toml` round-trips, the depth rule collapses its 34 files into 3
+directory links, and `cargo test` covers both. Comments are not preserved by the round
+trip and do not need to be — the tool only ever *writes* a manifest it generated itself
+(`apply::write`, M2); a hand-written file is read, never rewritten.
 
 ---
 
