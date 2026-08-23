@@ -23,13 +23,15 @@ commit messages. The user writes in Turkish; the files do not.
 - **active** — the one bundle whose symlinks are currently in place. Exactly one, never partial.
 - **external mode** — `mode = "external"`: the bundle ships no files, only `packages` + `components`. Files stay under chezmoi/stow. This is a v1 feature and the format's main distribution path, not a fallback.
 - **components** — optional role→component map in `dotfiles.toml` (`bar`, `terminal`, `icons`…). Descriptive only; install logic reads `packages`. This is the standard the project is trying to set — see `docs/standard.md`.
-- **link ledger** — `~/.local/state/dotpack/state.toml`, the record of every link placed. Switching cleanly depends entirely on this file being accurate.
+- **link ledger** — `~/.local/state/dotpack/state.toml`, the record of every link placed, every directory created to place it, and which bundles' hooks have already run. Switching cleanly depends entirely on this file being accurate.
+- **detached link** — an application deleted our symlink and wrote a real file in its place (GTK, VS Code). The only thing `sync` exists for.
 
 ## Invariants — do not violate
 
 1. **`scan/` never writes to disk.** It reads and returns suggestions. `apply.rs` is
-   the only module that mutates the filesystem. Keep it that way; it is what makes
-   scanning testable and safe.
+   the only module that mutates the filesystem — **including `collect`'s output**
+   (`apply::write_bundle()`). A `collect.rs` that writes its own files makes this
+   invariant false on day one.
 2. **Nothing is destroyed without a backup.** Any real file at a target path is moved
    to `~/.local/state/dotpack/backups/<timestamp>/` and recorded in the ledger
    so it can be restored.
@@ -49,16 +51,43 @@ commit messages. The user writes in Turkish; the files do not.
    dozens of executable scripts; a lost exec bit breaks them silently.
 10. **A repo without `dotfiles.toml` is rejected with a clear message.** Do not add a
    fallback that runs a foreign `install.sh`. See `docs/real-world.md` § adoption.
+11. **Nothing is ever fetched from a `url` in a manifest.** A `url` in `components` means
+   "the user does this by hand" and is printed in the summary. Fonts and themes that no
+   package provides ship **inside the bundle** under `local/share/`. See `docs/design.md`
+   §5.2 and `real-world.md` F5.
+12. **`ignore` is collect-time only.** It keeps a path out of the bundle. It cannot skip a
+   file at install time — `~/.config/hypr` is one directory link. Anything that `source`s
+   an ignored file breaks; §5.1 reports it.
+13. **Hooks run on a bundle's first activation only**, recorded in the ledger. Real hooks
+   append to files; appending twice is not undoable.
+14. **`HOME` is read in `paths.rs` and nowhere else.** M1's acceptance test runs against a
+   temporary `HOME`; that is impossible if `env::var` is scattered.
 
-## Link depth rule
+## Link rules
 
-Walk down from `config/`. If a directory contains files directly, link it and stop.
-If it only contains directories, descend one more level.
+**`config/` — directory link, at the depth rule's depth.** Walk down from `config/`. If a
+directory contains files directly, link it and stop. If it only contains directories,
+descend again.
 
 - `config/hypr/hyprland.conf` → link `~/.config/hypr`
 - `config/hypr/themes/x/*` (nothing above it) → link `~/.config/hypr/themes/x`
 
 The second case is real: rices install *alongside* a user's own config, not over it.
+
+**`home/` and `local/` — per file, always.** `~`, `~/.local/bin` and
+`~/.local/share/fonts` are mixed directories holding the user's own things; a directory
+link hides them. Hand-installed Nerd Fonts live in exactly that path (`real-world.md` F17).
+
+Every directory created to place a link goes in the ledger and is removed on deactivation
+**if empty**. After anything lands under `~/.local/share/fonts`, run `fc-cache -f`.
+
+## Reference integrity
+
+Every shipped text file is scanned for `source` / `include` / `@import` and each reference
+is resolved. A reference pointing outside the bundle is reported — at collect time to the
+author, at validation time to the receiver. This is **not** WM-specific: `kitty.conf`'s
+`include ~/.config/kitty/catppuccin.conf` is the case that motivated it, and shipping one
+without the other installs a kitty that errors on every start. `docs/design.md` §5.1.
 
 ## Dependencies
 
@@ -120,7 +149,11 @@ pacman -Qqem              # foreign / AUR
 expac -S '%r' <pkg>       # repo name — can be third-party, e.g. cachyos-extra-v3
 pacman -Qoq $(command -v <cmd>)   # binary → owning package
 pacman -F <cmd>           # package providing a not-yet-installed command (needs pacman -Fy)
-fc-match "<font>"         # silently falls back if the font is missing — compare the returned family
+pacman -F <font.ttf>      # ...and the same trick by BASENAME finds the package that ships
+                          # a hand-installed font. -Qoq says "no owner"; -F says "extra/ttf-cascadia-mono-nerd".
+fc-match "<font>" --format '%{family}\n%{file}\n'
+                          # silently falls back if the font is missing — compare the returned family
+fc-cache -f               # a font nothing has indexed does not exist to running apps
 ```
 
 Repo names are machine-specific, package names are portable. `dotfiles.toml` stores

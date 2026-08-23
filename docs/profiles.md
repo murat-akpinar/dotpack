@@ -76,15 +76,26 @@ The whole switch is **redirecting symlinks**. No files are copied, so it is inst
 | `config/hypr/themes/x/` (no files above it) | `~/.config/hypr/themes/x` | **directory** link, deep |
 | `home/.bashrc` | `~/.bashrc` | file link |
 | `local/bin/foo.sh` | `~/.local/bin/foo.sh` | file link |
-| `local/share/fonts/` | `~/.local/share/fonts` | directory link |
+| `local/share/fonts/CascadiaMono/*.ttf` | `~/.local/share/fonts/CascadiaMono/*.ttf` | file link, one per font |
 
-Which depth gets linked is decided by the
-[design.md §2 link depth rule](./design.md): the first directory that contains files.
+Two rules, and neither has an exception:
 
-Under `config/` a **directory** link is used, because that is exactly the unit a rice
-switch wants to swap: `~/.config/hypr` belongs entirely to bundle A or entirely to B.
-`~/.local/bin` on the other hand is a mixed directory (it holds scripts that do not
-belong to the tool), so links there are placed per file.
+- **`config/` → directory link**, at the depth the
+  [design.md §2 depth rule](./design.md) picks. That is exactly the unit a rice switch
+  wants to swap: `~/.config/hypr` belongs entirely to bundle A or entirely to B.
+- **`home/` and `local/` → per file.** `~`, `~/.local/bin` and `~/.local/share/fonts` are
+  *mixed* directories: they hold things that are the user's, not any bundle's. A directory
+  link there hides them — and `~/.local/share/fonts` is precisely where hand-installed
+  Nerd Fonts live ([real-world.md](./real-world.md) F17), so this is not hypothetical.
+
+Any intermediate directory that has to be **created** to place a link
+(`~/.config/hypr/themes/` for the deep case, `~/.local/share/fonts/CascadiaMono/`) is
+recorded in the ledger and deleted on deactivation **if it is empty**. Without that, every
+switch leaves a little more litter behind.
+
+After any link lands under `~/.local/share/fonts`, `apply` runs `fc-cache -f`. A font
+nothing has indexed is a font that does not exist as far as every running application is
+concerned.
 
 ### The link ledger (`state.toml`)
 
@@ -94,6 +105,7 @@ The one requirement for a clean switch: **knowing what you put there.**
 active       = "my-hyprland"
 activated_at = "2026-08-23T14:02:11Z"
 services     = ["hypridle"]
+hooks_ran    = ["my-hyprland", "caelestia"]   # bundles whose hooks have run once
 
 [[links]]
 target = "~/.config/hypr"
@@ -107,11 +119,25 @@ adopted_backup  = "2026-08-23T14-02-11/fish"
 [[links]]
 target = "~/.bashrc"
 kind   = "file"
+
+[[links]]
+target   = "~/.local/share/fonts/CascadiaMono/CaskaydiaMonoNerdFontMono-Regular.ttf"
+kind     = "file"
+mkdirs   = ["~/.local/share/fonts/CascadiaMono"]   # created by us, removed if left empty
 ```
 
 `adopted_backup`: there was **a real file not belonging to the tool** at that path, and
 it was moved into the backups. When all bundles are removed it is restored from there.
 The user's own config is never lost.
+
+`mkdirs`: directories that did not exist and had to be created to place this link. On
+deactivation they are removed **only if empty** — the user may have put their own files
+in there since.
+
+`hooks_ran`: hooks are a first-activation thing ([manifest.md](./manifest.md)). This list
+is the memory that makes `use A` → `use B` → `use A` safe; without it, every hook that
+appends to a file ([real-world.md](./real-world.md) F4) corrupts a little more on each
+round trip.
 
 ### The `use B` algorithm
 
@@ -119,23 +145,31 @@ The user's own config is never lost.
 old = state.toml.links
 new = the links B would produce
 
-1. Is the active bundle dirty?
+1. Is the active bundle detached?
    - a regular file where a symlink was expected → an application overwrote the link
    - ask in the TUI: write back to the bundle (sync) / ignore / cancel
 
-2. Packages: install the ones in B's list that are not installed
+2. Does B ship everything it references? (design.md §5.1)
+   - a dangling source/include → warn in the plan, do not block
+
+3. Packages: install the ones in B's list that are not installed
    → the old bundle's packages are NOT removed
 
-3. Apply the link diff:
-   - only in old  → remove the link, restore adopted_backup if there is one
+4. Apply the link diff:
+   - only in old  → remove the link, restore adopted_backup if there is one,
+                    remove any mkdirs left empty
    - in both      → repoint the link at the new bundle
    - only in new  → place the link (if a real file is in the way, back it up first)
 
-4. Services: stop the ones in old but not in new, start the new ones
+5. fc-cache -f, if anything under ~/.local/share/fonts changed
 
-5. Update state.toml + previous
+6. Services: `disable --now` the ones in old but not in new, enable the new ones
 
-6. Reload the WM:  hyprctl reload | swaymsg reload | i3-msg reload
+7. Hooks: only if B is not in state.toml's hooks_ran
+
+8. Update state.toml + previous
+
+9. Reload the WM:  hyprctl reload | swaymsg reload | i3-msg reload
    (if the WM differs, no reload — warn "log out of the session" instead)
 ```
 
@@ -178,7 +212,7 @@ The main screen is the bundle list itself:
 │                                                               │
 │                                                               │
 ├───────────────────────────────────────────────────────────────┤
-│ enter switch  a add  c collect  s sync  d delete  q quit      │
+│ ↵ switch  a add  c collect  s sync  d delete  - back  q quit  │
 └───────────────────────────────────────────────────────────────┘
 ```
 
@@ -188,8 +222,6 @@ The main screen is the bundle list itself:
 
 ## 6. Open Decisions
 
-1. Should local-path bundles (`add ~/GIT/my-dotfiles`) be held in the store as a
-   **symlink**, or as an absolute path in `state.toml`? (a symlink is more visible)
-2. If package installation fails during `use`: finish the switch or roll it back?
-3. What happens when deleting a bundle (`d`) that is active — is `use -` required first?
-4. Switching while the active bundle's git repo has uncommitted changes: warn or block?
+Moved to [TODO.md](../TODO.md) § Phase 0, together with every other open question. Four
+documents each keeping their own list is how three of `design.md`'s five questions came to
+be answered somewhere else without anyone noticing.

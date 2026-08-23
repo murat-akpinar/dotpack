@@ -88,10 +88,13 @@ The `from` field is not decoration: today the attribution in "polybar themed by 
 has nowhere to go. Rice culture is built on derivation; there should be a field for
 saying who you took it from.
 
-A component that has a `url` **is not downloaded.** It is listed as "do this manually" in
-the install summary. In the post that was examined, "Calculator: Here", "Search applet: my
-own version" and "Autotiling script: Here" are all in this category — downloading and
-running a random GitHub script is not something to automate.
+A component that has a `url` **is not downloaded, by any conforming reader.** That is part
+of the spec, not an implementation choice: a manifest is data written by a stranger, and a
+format whose fields can make a reader fetch things is a format nobody should run. It is
+listed as "do this manually" in the install summary and nothing more. In the post that was
+examined, "Calculator: Here", "Search applet: my own version" and "Autotiling script: Here"
+are all in this category — downloading and running a random GitHub script is not something
+to automate.
 
 ---
 
@@ -183,7 +186,14 @@ feh swww hyprpaper swaybg            → wallpaper
 
 A matching package is assigned its role, the rest stay role-less. The `gtk_theme`,
 `icons`, `cursor` and `font_*` roles come from the config scan (`gtk-3.0/settings.ini`,
-`fc-match` — [design.md §5](./design.md)). The user corrects them in the TUI.
+`fc-match` — [design.md §5.2](./design.md)). The user corrects them in the TUI.
+
+**For these four roles, prefer `pkg` over `url` harder than intuition suggests.** They are
+the roles people install by hand, so `pacman -Qoq` reports no owner and the obvious
+conclusion is "not a package". It usually is one: ask `pacman -F` with the **file's
+basename** before giving up. A hand-unzipped Nerd Font and a `curl | sh` prompt both turn
+out to sit in `extra`. Writing `url` where a `pkg` exists costs the reader a manual step
+they never needed.
 
 Nobody dies if the table is incomplete: the role stays empty and the package is still
 installed.

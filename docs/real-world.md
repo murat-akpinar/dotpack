@@ -62,13 +62,16 @@ The user's own `~/.config/hypr/` structure stays; the rice moves in beside it as
 insufficient. The new rule:
 
 > Walk down from `config/`. If a directory **contains files directly**, link it and stop.
-> If it only contains directories, descend one more level.
+> If it only contains directories, descend again until one with files is reached.
 
 - `config/hypr/*.conf` exists → `~/.config/hypr` is linked (old behavior, the 90% case)
 - `config/hypr/themes/cyberpunk/*` exists and there are no files under `config/hypr/` →
   `~/.config/hypr/themes/cyberpunk` is linked, the user's hypr config is untouched
 
-One rule, no settings, and both cases come out right.
+One rule, no settings, and both cases come out right — **for `config/`.** It was later
+scoped to that one directory: `home/` and `local/` are linked per file, because `~`,
+`~/.local/bin` and `~/.local/share/fonts` hold the user's own things and a directory link
+would hide them (F17 is exactly that case). See [design.md §2](./design.md).
 
 ### F3 — Real installers write into root-owned directories
 
@@ -299,6 +302,50 @@ icons belong in `local/share/fonts/` and `local/share/icons/`, shipped by the bu
 the scan must **say so** instead of silently dropping the component: "no package owns
 this, it will be shipped as a file / declared as a url".
 
+**Correction, found while reviewing this document.** "No package owns it" was taken to
+mean "no package exists". For fonts that is usually false:
+
+```
+$ fc-match "CaskaydiaMono Nerd Font Mono" --format '%{file}'
+/home/…/.local/share/fonts/CascadiaMono/CaskaydiaMonoNerdFontMono-Regular.ttf   # -Qoq: no owner
+$ pacman -Ss cascadia
+extra/ttf-cascadia-mono-nerd 3.5.1-1 (nerd-fonts)
+```
+
+The font was installed by hand from the Nerd Fonts release page; `extra` ships it. `-Qoq`
+answers *"which package installed this file"* and correctly says nobody. The question that
+actually matters is *"which package **could** provide this file"*, and that is `pacman -F`
+against the **basename** — the same file database §5 already uses for commands.
+
+So the font chain has three ends, not two: owned → `-Qoq`; unowned but packaged → `-F`;
+genuinely unpackaged → ship the files in `local/share/fonts/` and run `fc-cache -f`
+([design.md §5.2](./design.md)). The middle one is where most Nerd Fonts land, and it is
+the difference between a bundle carrying 40 MB of `.ttf` and carrying one package name.
+
+### F19 — Configs include configs, and not only WM configs
+
+`~/.config/kitty/kitty.conf` on this machine:
+
+```
+font_family      family="CaskaydiaMono Nerd Font Mono" style="SemiBold"
+include ~/.config/kitty/catppuccin.conf
+```
+
+The `example/` bundle in this repo shipped `kitty.conf` and **not** `catppuccin.conf` —
+the real directory has four files, the bundle had one. Installing it produces a kitty
+that prints an include error on every start and has none of the rice's colours. Nobody
+noticed, because nothing checks.
+
+Following `source` / `include` was specified per-WM ([design.md §5](./design.md) key
+table), which catches hyprland's eight `source` lines and misses kitty's one `include`.
+`@import` in a waybar `style.css` is the same shape of miss.
+
+→ **The check is general, not per-WM**: every shipped text file is scanned for reference
+keywords, every reference is resolved, and one that points outside the bundle is reported
+([design.md §5.1](./design.md)). It also runs on a *foreign* bundle at validation time,
+where it is the cheapest available answer to "will this rice work when it lands?" — no
+machine state needed, just the bundle.
+
 ### F18 — Preview media, again, in a live rice
 
 23 MB of the 27 MB `scripts/quickshell/` tree is `guide/previews/*.png`. Third repo out of
@@ -357,7 +404,10 @@ This should be recorded: **the format's value depends on bundles existing in the
 - [x] `requires` field added → `manifest.md`
 - [x] Default `ignore` list added → `manifest.md`
 - [x] `preview` field added (for the generated README) → `manifest.md`
-- [x] `add` will do a shallow clone → `TODO.md` M3
+- [x] `add` will do a shallow clone → `TODO.md` M4
 - [x] `-Syu` will never be run → the invariants in `CLAUDE.md`
 - [x] Repo outside the format → clear error; `import` deferred to v2 → `TODO.md`
 - [x] Components no package owns → warn, do not drop → `design.md` §5, `TODO.md` M2
+- [x] Unowned font → `pacman -F` by basename before shipping files (F17 correction) → `design.md` §5.2
+- [x] `fc-cache -f` after fonts land — a font nothing indexed does not exist → `design.md` §4.2
+- [x] Reference integrity as a general check, not a per-WM one (F19) → `design.md` §5.1

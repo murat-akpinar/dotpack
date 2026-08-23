@@ -39,7 +39,7 @@ mode    = "symlink"
 services = ["hypridle", "swayosd"]
 
 ignore = [
-  "config/hypr/config/monitors.conf",   # different on every machine
+  "config/hypr/colors.conf",     # regenerated from the wallpaper on every login
   "config/hypr/scripts/*.log",
 ]
 
@@ -52,8 +52,8 @@ yay    = ["matugen-bin", "swayosd-git"]   # AUR
 paru   = []
 
 [components]
-wm       = "i3"
-bar      = { pkg = "polybar", theme = "forest", from = "adi1090x/polybar-themes" }
+wm       = "hyprland"
+bar      = { pkg = "waybar", theme = "forest", from = "adi1090x/waybar-themes" }
 terminal = { pkg = "kitty", version = ">=0.48" }
 icons    = { pkg = "papirus-icon-theme", name = "Papirus" }
 
@@ -131,11 +131,20 @@ The short form is the package name (`shell = "zsh"`); the long form carries the 
 If a `pkg` inside `components` is missing from the `packages` lists → **a warning, not an
 error.** Install logic looks only at `packages`.
 
+**Fonts, themes and cursors are components with a preference order.** `pkg` first — most
+hand-installed Nerd Fonts turn out to exist in the repos and `collect` finds them with
+`pacman -F` ([design.md §5.2](./design.md)). If no package ships it, the files go into
+`local/share/fonts/` and the component carries no `pkg` at all. `url` is the last resort
+and means one thing only: **"install this yourself"** — it is printed in the summary as a
+manual step and is never fetched.
+
 ### File behavior
 
 | Field | Type | Default | Note |
 |---|---|---|---|
-| `mode` | enum | `"symlink"` | `symlink` (switchable) \| `copy` (independent) \| `external` (another tool handles the files). Can be overridden at install time with `--copy` / `--symlink` — this is the receiver's preference. |
+| `mode` | enum | `"symlink"` | `symlink` — dotpack places the files. `external` — dotpack places **nothing**, another tool does. There is no third value: `copy` was removed ([design.md §4.4](./design.md)), and with it the `--copy` / `--symlink` flags. |
+| `ignore` | string[] | the list below | Globs relative to the bundle root. **Collect-time only:** a matching path is never written into the bundle. It has no meaning at install time — `~/.config/hypr` is one directory link, there is no per-file decision left to make. A written list is **added to** the default, it does not replace it. |
+| `assets` | object[] | `[]` | Destinations outside the convention. `{ "src": "...", "dest": "..." }`. `~` is expanded inside `dest`. **Assets are copied, never linked**, and a switch does not remove them — `dest` is usually a directory the user owns (`~/Pictures/wallpapers`), and adopting it into a bundle would be an unpleasant surprise. An existing file of the same name is not overwritten; it is reported. |
 
 **`mode = "external"`** — the bundle places no files; `dotfiles.toml` carries only
 `packages` + `components`, and chezmoi / stow / bare-git places the files.
@@ -156,8 +165,6 @@ touch files.** The user runs `chezmoi apply` themselves.
 This is not a fallback plan, it is **the way the standard spreads.** Adding one file to an
 existing chezmoi repo is far lower friction than migrating that repo to our layout. The
 format has to make sense without our tool — [standard.md](./standard.md).
-| `ignore` | string[] | the list below | Globs relative to the bundle root. Applied at install **and** during `sync`. A written list is **added to** the default, it does not replace it. |
-| `assets` | object[] | `[]` | Destinations outside the convention. `{ "src": "...", "dest": "..." }`. `~` is expanded inside `dest`. |
 
 Always ignored (no need to write these):
 
@@ -170,8 +177,13 @@ In the two repos that were examined: 21 MB of 76.5 MB was a promo video, 29 MB o
 was VS Code state. Both are pure dead weight at install time
 ([real-world.md](./real-world.md) F8, F16).
 
-Typical use of `ignore`: machine-specific files (`monitors.conf`), generated files
-(`colors.conf`), logs.
+Typical use of `ignore`: generated files (`colors.conf`, `settings.json`), logs, caches.
+
+**Careful with machine-specific files.** `ignore`-ing `monitors.conf` does not make the
+receiver's `hyprland.conf` stop `source`-ing it — it makes that `source` line fail.
+Either ship the file and say "edit this" in the README, or drop the `source` line as well.
+[design.md §7](./design.md) spells the two options out; the §5.1 reference check reports
+the mistake at collect time rather than on the receiver's screen.
 
 There is **no** file list. What goes where comes from the directory layout
 ([design.md §2](./design.md)):
@@ -194,7 +206,9 @@ services (the ones needing root) are **not supported** — somebody else's bundl
 enable a root service. If it is required, it goes in the `post_install` hook and the user
 sees and approves the hook's contents.
 
-On a switch: services present in the old bundle but not in the new one are stopped.
+On a switch: services present in the old bundle but not in the new one are
+`disable --now`d — **stopping alone is not enough**, an enabled unit comes straight back
+on the next login.
 
 ### hooks
 
@@ -207,6 +221,10 @@ post_install = "hooks/post-install.sh"
 - Path relative to the bundle root. A path escaping the bundle (`../`, an absolute path) is **rejected**.
 - **The contents are shown in the TUI before** it runs, and the user approves. A script from
   someone else's repo can do damage without root too.
+- **They run on the bundle's first activation only.** The ledger remembers; `use A` →
+  `use B` → `use A` does not run them a second time. Real hooks append to files
+  ([real-world.md](./real-world.md) F4) and appending twice is not undoable. `--run-hooks`
+  forces a rerun.
 - Can be skipped entirely with `--no-hooks`.
 - Working directory is the bundle root. Environment variables: `DP_BUNDLE_DIR`, `DP_MODE`.
 - Exit code ≠ 0 → a warning, the install does not stop (the files are already in place).
@@ -231,6 +249,13 @@ Warning (installation continues):
 - `wm` does not match the machine's WM
 - an `ignore` glob matches nothing (possible typo)
 - a duplicate name in a package list
+- a `source` / `include` / `@import` inside a shipped config points at a file the bundle
+  does not ship ([design.md §5.1](./design.md)) — the single most common way a bundle
+  installs and then does not work
+- `requires` cannot be compared: `pacman -Q` prints `1:0.56.0-2`, so the epoch and pkgrel
+  are stripped and the rest compared **field by field as integers**. `0.9` vs `0.56` is
+  the reason a string comparison is not acceptable; a non-numeric field means "cannot
+  compare", which is a warning and not a block
 
 ---
 

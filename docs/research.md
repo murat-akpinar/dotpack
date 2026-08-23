@@ -1,6 +1,10 @@
 # dotpack — Pre-Design Research
 
-Date: 2026-08-23 · Status: research (no code, design not approved)
+Date: 2026-08-23 · Status: **superseded where it differs from
+[design.md](./design.md)** — kept for the reasoning and the verified commands, not as a
+current decision. The clearest example is §3: it concludes the manifest must record the
+repo name and its class; `design.md` decided the opposite (package names are portable,
+repo names are not) and that decision stands.
 
 ## 1. Problem
 

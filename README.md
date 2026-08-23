@@ -27,9 +27,9 @@ works out the dependencies for you.
 
 ## What it does
 
-`collect` scans your machine, follows your WM config to find which commands it
-actually launches, resolves those to packages, and writes a **bundle**: a plain
-directory you can push to git.
+`collect` scans your machine, follows your config to find which commands it actually
+launches and which files it includes, resolves those to packages, and writes a
+**bundle**: a plain directory you can push to git.
 
 ```
 awesome-rice/
@@ -57,6 +57,12 @@ yay    = ["matugen-bin"]
 A link ledger records exactly what was placed, so switching away is clean and your
 own pre-existing configs are backed up rather than clobbered.
 
+Two things it takes seriously because they are the usual ways a shared rice arrives
+broken: **every referenced file has to ship** — a `kitty.conf` whose
+`include catppuccin.conf` is missing installs a kitty that errors on every start — and
+**fonts have to actually arrive**, resolved to a package where one exists and shipped in
+the bundle where none does, with `fc-cache` run afterwards.
+
 ## Docs
 
 | | |
@@ -70,5 +76,5 @@ own pre-existing configs are backed up rather than clobbered.
 | [docs/tui.md](docs/tui.md) | Screens, keymap, ratatui decisions |
 | [example/](example/) | A real rice as a bundle — the 1898-line installer it replaces |
 
-Each doc ends with an **Open Decisions** section. The build order lives in
-[TODO.md](TODO.md) — six milestones, each leaving a usable tool behind.
+The build order lives in [TODO.md](TODO.md): seven milestones, each leaving a usable tool
+behind, and one Phase 0 list of the questions still open.

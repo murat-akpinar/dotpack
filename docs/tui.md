@@ -17,7 +17,7 @@ understood at a glance, every step reversible.
               │   │        │        │    │
          ┌────┴───▼──┐ ┌───▼────┐ ┌─▼────┴───┐
          │   Add     │ │ Switch │ │   Sync   │
-         │ (source)  │ │  plan  │ │   diff   │
+         │ (source)  │ │  plan  │ │  repair  │
          └─────┬─────┘ └───┬────┘ └────┬─────┘
                │           │           │
                └───────────▼───────────┘
@@ -35,7 +35,7 @@ understood at a glance, every step reversible.
 ```
 ┌ dotpack ───────────────────────────────────────────────────────┐
 │                                                                │
-│   ● my-hyprland      hyprland   34 pkgs   active · 2 changed   │
+│   ● my-hyprland      hyprland  34 pkgs  active · 2 detached ⚠1 │
 │   ○ caelestia        hyprland   51 pkgs   github:caelestia…    │
 │   ○ minimal-sway     sway       12 pkgs                        │
 │                                                                │
@@ -50,8 +50,11 @@ understood at a glance, every step reversible.
 └────────────────────────────────────────────────────────────────┘
 ```
 
-- `●` is the active bundle. `2 changed` = the number of files whose symlink was broken or
-  whose content changed — the one signal that points the user at `sync`.
+- `●` is the active bundle. `2 detached` = links an application replaced with a real file
+  — the one signal that points the user at `sync`. `⚠1` = the §6 content scan found
+  something that looks like a secret **inside the active bundle**. In symlink mode the
+  bundle is what you edit every day, so a token can arrive long after `collect`; this
+  counter is the only thing watching.
 - The bottom panel is a summary of the selected bundle. There is no separate "detail"
   screen; list + summary is enough.
 - `-` → go back to the previous bundle (`use -`).
@@ -74,7 +77,7 @@ Nothing changes without confirmation.
 │   ↻ ~/.config/hypr        my-hyprland → caelestia              │
 │   + ~/.config/ags         new link                             │
 │   − ~/.config/cava        link will be removed                 │
-│   ⚠ ~/.config/fish        a real file exists → will be backed up│
+│   ⚠ ~/.config/fish        real file → will be backed up        │
 │                                                                │
 │  SERVICES    + caelestia.service   − swayosd.service           │
 │                                                                │
@@ -92,9 +95,18 @@ someone else's repo unseen.
 
 ## 4. Collect Wizard
 
-Five steps, forward and back with `tab`/`shift-tab`. Each step is its own screen.
+Five steps, forward and back with `tab`/`shift-tab`. Each step is its own screen. Steps
+1 and 5 are plain forms and are described rather than drawn; 2–4 are the ones that carry
+the work.
 
-### 4.1 File selection
+### 4.0 Identity (1/5)
+
+Four fields, all pre-filled, all editable: `name` (defaults to `<user>-<wm>`), `wm`
+(detected, changeable), `description`, and the **output directory**. Nothing here is
+discovered, so there is nothing to wait for — the scan starts in the background the
+moment this screen appears, and step 2 is already populated when the user gets there.
+
+### 4.1 File selection (2/5)
 
 ```
 ┌ Collect · 2/5 · Files ─────────────────────────────────────────┐
@@ -119,7 +131,7 @@ Five steps, forward and back with `tab`/`shift-tab`. Each step is its own screen
 - The WM-related ones are pre-ticked.
 - ⚠ rows are red and **unticked by default**. They have to be ticked deliberately.
 
-### 4.2 Dependencies
+### 4.2 Dependencies (3/5)
 
 ```
 ┌ Collect · 3/5 · Packages ──────────────────────────────────────┐
@@ -130,6 +142,7 @@ Five steps, forward and back with `tab`/`shift-tab`. Each step is its own screen
 │  [x] matugen-bin    AUR            config: exec-once           │
 │  [x] swayosd-git    AUR            config: exec-once           │
 │  [x] noto-fonts     extra          font: gtk-3.0/settings.ini  │
+│  [x] ttf-cascadia-mono-nerd  extra  font: kitty font_family -F │
 │  [ ] systemd        core           config: exec-once  ⚠ base   │
 │  [?] waybar         —              in config, not installed    │
 │                                                                │
@@ -143,8 +156,15 @@ Five steps, forward and back with `tab`/`shift-tab`. Each step is its own screen
   out false positives.
 - `[?]` = appears in the config but is not installed (found with `pacman -F`).
 - `⚠ base` = from the `base`/`base-devel` group, probably unnecessary.
+- `-F` in the reason means the font is installed **by hand** on this machine but a repo
+  package ships it ([design.md §5.2](./design.md)). Ticking it turns a 40 MB directory the
+  bundle would otherwise carry into one package name. Unticking it ships the files instead;
+  both work, and the screen says which one is about to happen.
 
-### 4.3 Secret summary (only if something was found)
+### 4.3 Warnings (4/5 — skipped when there is nothing to warn about)
+
+Two different problems, one screen — they are both "this bundle is not what you think it
+is", and neither can be skipped when it has content.
 
 ```
 ┌ Collect · 4/5 · Warnings ──────────────────────────────────────┐
@@ -156,13 +176,35 @@ Five steps, forward and back with `tab`/`shift-tab`. Each step is its own screen
 │                                                                │
 │  To include them anyway, go back to step 2 and tick them.      │
 │                                                                │
+│  ⚠ 2 references point outside the bundle                       │
+│                                                                │
+│   config/kitty/kitty.conf:21  include catppuccin.conf          │
+│                               → not selected      [a] add it   │
+│   config/waybar/style.css:1   @import ../shared/colors.css     │
+│                               → outside ~/.config  [i] ignore  │
+│                                                                │
+│  Shipping kitty.conf without catppuccin.conf ships a kitty     │
+│  that errors on every start.                                   │
+│                                                                │
 ├────────────────────────────────────────────────────────────────┤
-│ tab next   shift-tab back                                      │
+│ a add the file   i ignore   tab next   shift-tab back          │
 └────────────────────────────────────────────────────────────────┘
 ```
 
-If nothing was found this step is skipped. If something was, it **cannot be skipped** — the
-user has to see it.
+The secret half and the reference half are the same idea from opposite directions: one
+catches a file that **should not** be in the bundle, the other a file that **should** be.
+Both are silent failures otherwise — the first on the author's reputation, the second on
+the receiver's screen.
+
+### 4.4 Review and write (5/5)
+
+The counts from every previous step on one screen — *n* directories, *n* files, *n* MB,
+*n* packages, *n* components filled in, *n* warnings accepted — plus the output path and
+an `[x] git init and commit` checkbox. `enter` writes.
+
+This is the only step that touches the disk, and it is `apply::write_bundle()` doing it
+([design.md §8](./design.md)). Everything before it was a scan producing a plan, which is
+why `esc` at any earlier point costs nothing.
 
 ---
 
@@ -183,6 +225,8 @@ $ paru -S --needed matugen-bin
 …
 [dotpack] 12 packages installed, 0 failed
 [dotpack] 6 links placed, 1 file backed up
+[dotpack] fc-cache -f — 3 new fonts indexed
+[dotpack] 1 manual step: cursor Bibata-Modern-Ice → https://github.com/ful1e5/Bibata_Cursor
 [press enter to continue]
 ```
 
@@ -269,7 +313,4 @@ screen applies.
 
 ## 8. Open Decisions
 
-1. Should `/` search filter the list, or jump to the match?
-2. Should a half-finished collect wizard save its state (`--resume`)?
-3. Bundle deletion (`d`) confirmation: `y/n`, or type the name?
-4. If the terminal is smaller than 80x24: warn and quit, or use a compressed layout?
+Moved to [TODO.md](../TODO.md) § Phase 0 — one list, not five.
