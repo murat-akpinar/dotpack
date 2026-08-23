@@ -23,7 +23,7 @@ commit messages. The user writes in Turkish; the files do not.
 - **active** — the one bundle whose symlinks are currently in place. Exactly one, never partial.
 - **external mode** — `mode = "external"`: the bundle ships no files, only `packages` + `components`. Files stay under chezmoi/stow. This is a v1 feature and the format's main distribution path, not a fallback.
 - **components** — optional role→component map in `dotfiles.toml` (`bar`, `terminal`, `icons`…). Descriptive only; install logic reads `packages`. This is the standard the project is trying to set — see `docs/standard.md`.
-- **link ledger** — `~/.local/state/dotpack/state.toml`, the record of every link placed, every directory created to place it, and which bundles' hooks have already run. Switching cleanly depends entirely on this file being accurate.
+- **link ledger** — `~/.local/state/dotpack/state.toml`, the **only** state file: active and previous bundle, every link placed, every directory created to place it, and which bundles' hooks have already run. Switching cleanly depends entirely on this file being accurate.
 - **detached link** — an application deleted our symlink and wrote a real file in its place (GTK, VS Code). The only thing `sync` exists for.
 
 ## Invariants — do not violate
@@ -59,7 +59,9 @@ commit messages. The user writes in Turkish; the files do not.
    file at install time — `~/.config/hypr` is one directory link. Anything that `source`s
    an ignored file breaks; §5.1 reports it.
 13. **Hooks run on a bundle's first activation only**, recorded in the ledger. Real hooks
-   append to files; appending twice is not undoable.
+   append to files; appending twice is not undoable. `pre_install` runs **before packages**,
+   `post_install` **after links and services** — one ordering, first activation and switch
+   alike.
 14. **`HOME` is read in `paths.rs` and nowhere else.** M1's acceptance test runs against a
    temporary `HOME`; that is impossible if `env::var` is scattered.
 
@@ -83,11 +85,25 @@ Every directory created to place a link goes in the ledger and is removed on dea
 
 ## Reference integrity
 
-Every shipped text file is scanned for `source` / `include` / `@import` and each reference
-is resolved. A reference pointing outside the bundle is reported — at collect time to the
-author, at validation time to the receiver. This is **not** WM-specific: `kitty.conf`'s
+Every shipped text file is scanned for references and each one is resolved. A reference
+pointing outside the bundle is reported — at collect time to the author, at validation
+time to the receiver. This is **not** WM-specific: `kitty.conf`'s
 `include ~/.config/kitty/catppuccin.conf` is the case that motivated it, and shipping one
-without the other installs a kitty that errors on every start. `docs/design.md` §5.1.
+without the other installs a kitty that errors on every start.
+
+**Two extractors, and the second is the one that finds most of them.** Keywords
+(`source` / `include` / `@import`) catch `include catppuccin.conf`. But the example
+bundle's other eleven dangling references are none of them — they are **paths sitting in
+ordinary argument position**:
+
+```
+exec-once = swayosd-server --style "$HOME/.config/swayosd/style.css"
+exec-once = quickshell -p ~/.config/hypr/scripts/quickshell/Shell.qml
+SCRIPTS_DIR="$HOME/.config/hypr/scripts/quickshell"
+```
+
+So: any token beginning `~/`, `$HOME/`, or `$(dirname …)/` in a shipped text file is a
+reference. `docs/design.md` §5.1.
 
 ## Dependencies
 
@@ -115,6 +131,19 @@ means write the lines.
 - Follow the ladder: does it need to exist → stdlib → already-installed dep → one line → minimum code.
 - Mark deliberate shortcuts with a `ponytail:` comment naming the ceiling and the upgrade path. Several are already recorded in the docs — carry them into the code.
 - Non-trivial logic leaves one runnable check behind (`#[test]` next to the code). No test frameworks, no fixtures.
+- **Comments mark sections, not lines.** In config, manifest and data files use block
+  markers and let them carry the structure:
+
+  ```toml
+  # --- packages start ---
+  ...
+  # --- packages end ---
+  ```
+
+  A per-line comment is for the one thing a reader would otherwise get *wrong* — a value
+  that looks like a mistake but isn't, a deliberate omission. Rationale, history and
+  "why we changed our mind" go in the README next to the file, never in the file. The
+  same holds in Rust: section markers over a comment per statement.
 - TUI colors use terminal palette constants (`Color::Green`), never hardcoded RGB. A ricing tool must not override the user's theme.
 - `std::panic::set_hook` must restore the terminal before printing. Non-negotiable.
 
@@ -147,10 +176,19 @@ cargo fmt
 pacman -Qqen              # explicitly installed, from repos
 pacman -Qqem              # foreign / AUR
 expac -S '%r' <pkg>       # repo name — can be third-party, e.g. cachyos-extra-v3
-pacman -Qoq $(command -v <cmd>)   # binary → owning package
-pacman -F <cmd>           # package providing a not-yet-installed command (needs pacman -Fy)
-pacman -F <font.ttf>      # ...and the same trick by BASENAME finds the package that ships
-                          # a hand-installed font. -Qoq says "no owner"; -F says "extra/ttf-cascadia-mono-nerd".
+pacman -Qoq $(command -v <cmd>)   # binary → owning package. May return a name that is NOT
+                          # the command: /usr/bin/quickshell is owned by `noctalia-qs`.
+expac -Q '%S' <pkg>       # ...because noctalia-qs PROVIDES quickshell and quickshell-git.
+                          # `pacman -Ss '^quickshell-git$'` finds nothing — -Ss does not
+                          # search provides. Never conclude "no such package" from -Ss.
+pacman -F <cmd>           # package providing a not-yet-installed command
+pacman -F <font.ttf>      # ...and the same trick by BASENAME finds the package that ships a
+                          # hand-installed font, where -Qoq says "no owner".
+                          # ⚠ REASONED, NOT RUN: needs `pacman -Fy` and there is no .files db
+                          # on this machine. The conclusion was cross-checked another way
+                          # (`pacman -Si ttf-cascadia-mono-nerd` → extra, 3.5.1-1). What proves
+                          # -F is necessary rather than convenient: `pacman -Ss <basename>`
+                          # returns nothing at all.
 fc-match "<font>" --format '%{family}\n%{file}\n'
                           # silently falls back if the font is missing — compare the returned family
 fc-cache -f               # a font nothing has indexed does not exist to running apps

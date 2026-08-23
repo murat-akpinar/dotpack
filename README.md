@@ -76,5 +76,5 @@ the bundle where none does, with `fc-cache` run afterwards.
 | [docs/tui.md](docs/tui.md) | Screens, keymap, ratatui decisions |
 | [example/](example/) | A real rice as a bundle — the 1898-line installer it replaces |
 
-The build order lives in [TODO.md](TODO.md): seven milestones, each leaving a usable tool
+The build order lives in [TODO.md](TODO.md): eight milestones, each leaving a usable tool
 behind, and one Phase 0 list of the questions still open.

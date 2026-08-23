@@ -128,7 +128,12 @@ itself — nobody wants them removed, but at install time they are **completely 
 
 → Two consequences:
 1. `add` must do a **shallow clone**: `git clone --depth 1`
-2. Default `ignore` list: `preview/`, `node_modules/`, `.git/`, `*.mp4`, `*.gif`
+2. Default `ignore` list: `node_modules/`, `.git/`, `*.mp4`, `*.gif`
+
+`preview/` itself is deliberately **not** on that list, though it looks like the obvious
+entry: the `preview` field points a bundle at one screenshot inside it
+([manifest.md](./manifest.md)). The media extensions remove the 21 MB and leave the
+screenshot, which is the part worth keeping.
 
 ### F9 — Design decisions that were confirmed
 
@@ -259,9 +264,19 @@ dpi = 96            monitor_count = 2       main_monitor_name = "HDMI-1"
 bundle at all. Monitor names, DPI and battery presence really do differ from machine to
 machine.
 
-`ponytail:` there is no template engine in v1; that is the known ceiling. `ignore` can say
-"leave the file out", it cannot say "generate the file per machine". If users ask for it, it
-comes with `schema = 2` — but first let it be proven that `ignore` is not enough.
+**Correction, proven in `example/`: `ignore` is usually the wrong answer here, and the
+third case shows why.** `monitors.conf` is the textbook machine-specific file, so it went
+into `ignore` — and `hyprland.conf` sources it unconditionally, so the receiver gets a
+config error instead of a rice. `ignore` is a collect-time filter; it cannot make the
+`source` line disappear.
+
+The v1 answer is not `ignore`, it is one of two honest options ([design.md §7](./design.md)):
+ship the file with your values and say "edit this" in the README, or drop the `source` line
+and let the tool's own defaults apply. `example/` takes the first.
+
+`ponytail:` there is no template engine in v1; that is the known ceiling — and it is a real
+ceiling, not a comfortable one. `ignore` can say "leave the file out", which for a sourced
+file means "break it". If users ask for templates it comes with `schema = 2`.
 
 ### F16 — Bloat categories
 
@@ -277,10 +292,11 @@ design, now confirmed).
 ## Third Case — The Machine This Was Designed On
 
 [ilyamiro/imperative-dots](https://github.com/ilyamiro/imperative-dots), customized. The
-installer-script type again, and a bigger one: **1898 lines of bash**, with a 71-package
+installer-script type again, and a bigger one: **1898 lines of bash**, with the package
 array hardcoded at line 157, a `pacman -Sy`, a `chsh`, root services enabled with sudo,
 and a telemetry id written to a version file. The bundle form of this rice lives in
-[`example/`](../example/) — 72 lines of TOML for the same rice.
+[`example/`](../example/), which is where the counts are kept — one place, so they can
+only be wrong once.
 
 ### F17 — The dependency chain dead-ends on things no package owns
 
@@ -302,6 +318,9 @@ icons belong in `local/share/fonts/` and `local/share/icons/`, shipped by the bu
 the scan must **say so** instead of silently dropping the component: "no package owns
 this, it will be shipped as a file / declared as a url".
 
+**That conclusion is half wrong — read the correction below before acting on it.** Two of
+the three are ordinary packages.
+
 **Correction, found while reviewing this document.** "No package owns it" was taken to
 mean "no package exists". For fonts that is usually false:
 
@@ -322,6 +341,12 @@ genuinely unpackaged → ship the files in `local/share/fonts/` and run `fc-cach
 ([design.md §5.2](./design.md)). The middle one is where most Nerd Fonts land, and it is
 the difference between a bundle carrying 40 MB of `.ttf` and carrying one package name.
 
+### F18 — Preview media, again, in a live rice
+
+23 MB of the 27 MB `scripts/quickshell/` tree is `guide/previews/*.png`. Third repo out of
+three carrying screenshots inside the config tree. The default `ignore` list earns its
+place.
+
 ### F19 — Configs include configs, and not only WM configs
 
 `~/.config/kitty/kitty.conf` on this machine:
@@ -340,17 +365,58 @@ Following `source` / `include` was specified per-WM ([design.md §5](./design.md
 table), which catches hyprland's eight `source` lines and misses kitty's one `include`.
 `@import` in a waybar `style.css` is the same shape of miss.
 
-→ **The check is general, not per-WM**: every shipped text file is scanned for reference
-keywords, every reference is resolved, and one that points outside the bundle is reported
+→ **The check is general, not per-WM**: every shipped text file is scanned, every
+reference is resolved, and one that points outside the bundle is reported
 ([design.md §5.1](./design.md)). It also runs on a *foreign* bundle at validation time,
 where it is the cheapest available answer to "will this rice work when it lands?" — no
 machine state needed, just the bundle.
 
-### F18 — Preview media, again, in a live rice
+**Second correction, from actually running the rule over the whole directory: keywords are
+the minority case.** Twelve dangling references in `example/` as it stood, and `include`
+accounts for exactly one of them. The other eleven carry no directive at all:
 
-23 MB of the 27 MB `scripts/quickshell/` tree is `guide/previews/*.png`. Third repo out of
-three carrying screenshots inside the config tree. The default `ignore` list earns its
-place.
+```
+exec-once = swayosd-server --style "$HOME/.config/swayosd/style.css"
+exec-once = quickshell -p ~/.config/hypr/scripts/quickshell/Shell.qml
+SCRIPTS_DIR="$HOME/.config/hypr/scripts/quickshell"
+```
+
+A keyword table would have shipped this bundle with a green light. So the extractor is
+**any token starting `~/`, `$HOME/` or `$(dirname …)/`**, and the keyword table survives
+only for the bare relative case (`include catppuccin.conf`) that has no other marker.
+
+Writing the checker rather than describing it paid for itself twice more: the naive form
+reports 25 findings on this bundle, and the 15 false ones are all the same three shapes —
+runtime paths (`~/.cache`, `~/.local/state`), the bundle's own README and manifest
+describing paths in prose, and `source "$(dirname …)"` where the keyword extractor fires
+first and eats the substitution. All three are exclusions in
+[design.md §5.1](./design.md) now. Two of the twelve real ones are fixed (the files ship);
+ten remain, and `example/README.md` lists them.
+
+### F20 — `-Qoq` can name a package the command is not called, and `-Ss` cannot see it
+
+`example/dotfiles.toml` listed `quickshell-git`. Checking it produced a confident wrong
+answer:
+
+```
+$ pacman -Ss '^quickshell-git$'          → (nothing)
+$ pacman -Qoq $(command -v quickshell)   → noctalia-qs
+$ expac -Q '%S' noctalia-qs              → quickshell  quickshell-git
+```
+
+`quickshell-git` is not a nonexistent package — it is a **virtual name `noctalia-qs`
+provides**, and it is installed on this machine right now. `pacman -Ss` searches names and
+descriptions and never provides, so "no such package" was the natural and incorrect
+reading. The first pass through this document made exactly that mistake and wrote it down
+as a finding.
+
+Two rules, both cheap:
+
+- **Never conclude a package does not exist from `-Ss`.** `pacman -Si <name>` resolves a
+  provide.
+- **Record the installable name, not the local provider.** `noctalia-qs` is one machine's
+  accident; `extra/quickshell` is what the receiver can install. When `-Qoq` returns a
+  name that is not the command, the scan has found a `provides` and must offer both.
 
 ---
 
@@ -411,3 +477,5 @@ This should be recorded: **the format's value depends on bundles existing in the
 - [x] Unowned font → `pacman -F` by basename before shipping files (F17 correction) → `design.md` §5.2
 - [x] `fc-cache -f` after fonts land — a font nothing indexed does not exist → `design.md` §4.2
 - [x] Reference integrity as a general check, not a per-WM one (F19) → `design.md` §5.1
+- [x] References are mostly **paths in argument position**, not keywords (F19) → `design.md` §5.1
+- [x] `-Qoq` may return a provider; `-Ss` cannot see provides (F20) → `design.md` §5

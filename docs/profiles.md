@@ -17,8 +17,7 @@ Bundles live in one place:
     └── minimal-sway/
 
 ~/.local/state/dotpack/
-├── state.toml             ← which bundle is active + which links were placed
-├── previous               ← the previously active bundle (for use -)
+├── state.toml             ← active bundle, previous bundle, every link placed
 └── backups/
     └── 2026-08-23T14-02-11/  ← the original files taken over during the first install
 ```
@@ -103,6 +102,7 @@ The one requirement for a clean switch: **knowing what you put there.**
 
 ```toml
 active       = "my-hyprland"
+previous     = "caelestia"                    # what `use -` goes back to
 activated_at = "2026-08-23T14:02:11Z"
 services     = ["hypridle"]
 hooks_ran    = ["my-hyprland", "caelestia"]   # bundles whose hooks have run once
@@ -152,28 +152,36 @@ new = the links B would produce
 2. Does B ship everything it references? (design.md §5.1)
    - a dangling source/include → warn in the plan, do not block
 
-3. Packages: install the ones in B's list that are not installed
+3. pre-install hook: only if B is not in state.toml's hooks_ran
+
+4. Packages: install the ones in B's list that are not installed
    → the old bundle's packages are NOT removed
 
-4. Apply the link diff:
+5. Apply the link diff:
    - only in old  → remove the link, restore adopted_backup if there is one,
                     remove any mkdirs left empty
    - in both      → repoint the link at the new bundle
    - only in new  → place the link (if a real file is in the way, back it up first)
 
-5. fc-cache -f, if anything under ~/.local/share/fonts changed
+6. fc-cache -f, if anything under ~/.local/share/fonts changed
 
-6. Services: `disable --now` the ones in old but not in new, enable the new ones
+7. Services: `disable --now` the ones in old but not in new, enable the new ones
 
-7. Hooks: only if B is not in state.toml's hooks_ran
+8. post-install hook: same condition as step 3, and hooks_ran is updated after it
 
-8. Update state.toml + previous
+9. Update state.toml (`active`, `previous`, links, services, hooks_ran)
 
-9. Reload the WM:  hyprctl reload | swaymsg reload | i3-msg reload
-   (if the WM differs, no reload — warn "log out of the session" instead)
+10. Reload the WM:  hyprctl reload | swaymsg reload | i3-msg reload
+    (if the WM differs, no reload — warn "log out of the session" instead)
 ```
 
-`dotpack use -` → returns to the bundle recorded in `previous`. Same idea as `cd -`;
+Steps 3 and 8 are the same first-activation check at two different points — `pre_install`
+before the packages, `post_install` after the links. Collapsing them into one late step
+moves `pre_install` past everything it exists to prepare ([design.md §4.2](./design.md)).
+
+`dotpack use -` → returns to the bundle in `state.toml`'s `previous`. A separate
+`previous` file would be a second thing to keep in sync with the first, for one string.
+Same idea as `cd -`;
 trying a new rice and going back with one command when you don't like it will be this
 tool's most-used feature.
 

@@ -58,7 +58,7 @@ icons     = { pkg = "papirus-icon-theme", name = "Papirus" }
 font_terminal = { pkg = "ttf-jetbrains-mono-nerd", name = "JetBrainsMonoNF-Regular" }
 font_system   = { pkg = "ttf-ubuntu-font-family",  name = "Ubuntu Medium 10" }
 
-wallpaper  = { path = "config/wallpapers/forest.png" }
+wallpaper  = { path = "assets/wallpapers/forest.png" }
 calculator = { name = "qalculate-gtk", url = "https://github.com/…" }
 ```
 
@@ -80,7 +80,7 @@ entirely.
 | `theme` | Variant | `"type-1 style-6"` |
 | `from` | Source / attribution | `"adi1090x/polybar-themes"` |
 | `version` | Minimum version | `">=0.48"` |
-| `path` | A file inside the bundle | `"config/wallpapers/forest.png"` |
+| `path` | A file inside the bundle | `"assets/wallpapers/forest.png"` |
 | `url` | Something that is not a package | GitHub link |
 | `note` | Free text | `"with my own modifications"` |
 
@@ -140,19 +140,40 @@ $ dotpack post my-i3
 
 [i3] forest — catppuccin mocha
 
-**WM:** i3 · **Bar:** polybar (forest, adi1090x — with my own modifications)
-**Compositor:** picom · **Terminal:** kitty 0.48
+**WM:** i3 · **Compositor:** picom
+**Bar:** polybar (forest, adi1090x/polybar-themes — with my own modifications)
+**Terminal:** kitty 0.48 · **Shell:** zsh
+**Prompt:** starship (Catppuccin Powerline Mocha)
 **GTK theme:** Catppuccin Blue Dark · **Icons:** Papirus
-**Shell:** zsh · **Prompt:** Starship (Catppuccin Powerline Mocha)
-**Launcher:** Rofi (adi1090x, type-1 style-6) · **File manager:** yazi
-**Editor:** Neovim (LazyVim) · **Fetch:** fastfetch
+**Wallpaper:** assets/wallpapers/forest.png
 **Fonts:** JetBrainsMonoNF-Regular / Ubuntu Medium 10
+**Launcher:** rofi (type-1 style-6, adi1090x/rofi) · **File manager:** yazi
+**Editor:** neovim (LazyVim) · **Fetch:** fastfetch
+**Calculator:** qalculate-gtk — https://github.com/…
 
 Dotfiles: https://github.com/user/my-i3
 Install: `dotpack use github:user/my-i3`
 
 [copied to clipboard]
 ```
+
+**The rendering rules, because "it looks about right" is not implementable.** `dotpack
+post` has to be a function of the manifest and nothing else:
+
+| Part | Rule |
+|---|---|
+| Order | the Role Dictionary's order, group by group. Unknown roles last, alphabetically — `calculator` is the last line for exactly that reason |
+| Label | the role's display name (`font_terminal` → part of the merged **Fonts** line) |
+| Value | `name` if present, otherwise `pkg`, **verbatim** — package names are lowercase and stay lowercase. Nothing is title-cased; `starship` is what you type to install it |
+| `version` | appended bare, operator stripped: `">=0.48"` → `kitty 0.48` |
+| `theme` + `from` | in parens: `theme, from` — then `— note` if there is one |
+| `url` | appended after an em dash. Never fetched, here or anywhere |
+| Empty roles | omitted entirely; no `**Browser:** —` filler |
+
+An earlier version of this block title-cased some values and not others (`Rofi` but
+`polybar`), dropped `wallpaper` and `calculator`, and used neither the dictionary order nor
+any other. That is fine in a mock-up and fatal in a spec: [TODO.md](../TODO.md) M3 is
+judged by whether the `[components]` block above renders to exactly this.
 
 The same content is also written into `README.md` during `collect`.
 

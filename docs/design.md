@@ -19,6 +19,8 @@ The verbs:
 | `dotpack use <name>` | Makes a bundle **active** — this is the rice switch |
 | `dotpack ls` | Bundles in the local store, and which one is active |
 | `dotpack sync` | Repairs the active bundle — writes a link an application replaced with a real file back into the bundle, then re-links |
+| `dotpack post <name>` | Renders `components` as a shareable list ([standard.md](./standard.md)) |
+| `dotpack rm <name>` | Removes a bundle from the store. The active one has to be deactivated first |
 
 `add` + `use` in one step: `dotpack use github:caelestia-dots/shell`
 
@@ -171,17 +173,35 @@ report it as "not found" and continue. Installation does not stop over a single 
 
 ### 4.1 collect
 
+**Scan order and screen order are not the same thing**, and conflating them is how the
+two documents drifted apart. Everything the scan produces is derived from one input — the
+set of ticked directories — so it all runs at once, on the worker thread, the moment that
+set changes:
+
 ```
-1. WM detection        XDG_CURRENT_DESKTOP + installed packages
-2. File selection      top-level directories under ~/.config → checklist
-                       (the WM-related ones pre-ticked)
-3. Reference check     every referenced file ships too, or is reported  (§5.1)
-4. Dependency discovery config → command → package → source   (§5)
-5. Secret scan         red warnings, unticked by default  (§6)
-6. Package confirmation discovered packages as a checklist + manual additions
-7. Write               copy into the target directory + generate dotfiles.toml + README.md
-8. (optional) git init + first commit
+scan  (no disk writes, re-runs whenever the selection changes)
+  ├─ WM detection         XDG_CURRENT_DESKTOP + installed packages
+  ├─ Reference resolution every referenced file ships too, or is reported  (§5.1)
+  ├─ Dependency discovery config → command → package → source              (§5)
+  ├─ Font/theme chain     fc-match → -Qoq → -F → ship                      (§5.2)
+  └─ Secret scan          deny-list + content patterns                     (§6)
 ```
+
+The user then walks five screens ([tui.md §4](./tui.md)), which present those results in
+the order that makes them easiest to act on — packages before warnings, because a warning
+about a file you already unticked is noise:
+
+```
+1/5 Identity      name, wm, description, output directory
+2/5 Files         top-level directories under ~/.config → checklist
+                  (the WM-related ones pre-ticked; the scan re-runs behind the screen)
+3/5 Packages      discovered packages as a checklist + manual additions
+4/5 Warnings      secrets found, and references pointing outside the bundle
+5/5 Review        counts, output path, [x] git init → enter writes
+```
+
+Only step 5/5 touches the disk, and `apply::write_bundle()` does it (§8): the bundle
+directory, `dotfiles.toml`, `README.md`, and optionally `git init` + a first commit.
 
 The output is a directory. `git remote add` + `push` is the user's job — the tool does
 not wrap git.
@@ -226,13 +246,19 @@ Switching between bundles in the local store. Details: [profiles.md](./profiles.
 
 ```
 1. Any detached links in the active bundle → if so, ask (sync / ignore)
-2. Install the new bundle's missing packages   (old packages are NEVER removed)
-3. Remove the active bundle's symlinks, place the new ones
-4. fc-cache -f, if fonts moved
-5. Update services (old-but-not-new: `disable --now`)
-6. Hooks: only if this bundle has never been activated before
-7. Reload the WM  (hyprctl reload / swaymsg reload / i3-msg reload)
+2. pre-install hook     first activation only
+3. Install the new bundle's missing packages   (old packages are NEVER removed)
+4. Remove the active bundle's symlinks, place the new ones
+5. fc-cache -f, if fonts moved
+6. Update services (old-but-not-new: `disable --now`)
+7. post-install hook    first activation only
+8. Reload the WM  (hyprctl reload / swaymsg reload / i3-msg reload)
 ```
+
+**The two hooks are not one step.** `pre_install` runs before the packages, `post_install`
+after links and services — the same ordering as §4.2, because a first activation *is* a
+switch from nothing. A single "run the hooks" step at the end silently moves `pre_install`
+past the thing it exists to prepare for.
 
 ### 4.4 sync (repairing detached links)
 
@@ -281,7 +307,8 @@ config line → command name → command -v → pacman -Qoq → package → sour
 | i3 | `~/.config/i3/config` | `exec`, `exec_always`, `bindsym … exec`, `status_command` |
 
 Additionally: commands inside `~/.config/*/scripts/*.sh` (the user's own scripts carry
-dependencies too — this machine has 5 scripts under `hypr/scripts/`).
+dependencies too — this machine has **14** under `hypr/scripts/`, all of them executable,
+which is where invariant 9 about mode bits comes from).
 
 ### 5.1 Reference integrity — every referenced file must ship
 
@@ -297,6 +324,24 @@ the colours are gone and kitty prints an error on every start. Following `source
 general: **every selected text file is scanned for references, and every reference is
 resolved.**
 
+**Two extractors, because a keyword table alone finds almost nothing.** Run over
+`example/`, the keyword list catches exactly one dangling reference — kitty's. The other
+eleven are paths in ordinary argument position, with no directive anywhere on the line:
+
+```
+autostart.conf:12   exec-once = swayosd-server --style "$HOME/.config/swayosd/style.css"
+autostart.conf:7    exec-once = quickshell -p ~/.config/hypr/scripts/quickshell/Shell.qml
+qs_manager.sh:6     SCRIPTS_DIR="$HOME/.config/hypr/scripts/quickshell"
+init.sh:9           RELOAD="$(dirname "${BASH_SOURCE[0]}")/quickshell/wallpaper/x.sh"
+```
+
+So:
+
+| # | What is extracted | Catches |
+|---|---|---|
+| 1 | the **keyword** table below, taking the rest of the line as the reference | `include catppuccin.conf` — bare relative paths, which have no other marker |
+| 2 | any **token starting `~/`, `$HOME/` or `$(dirname …)/`**, anywhere in any shipped text file | everything above |
+
 | Keyword | Seen in |
 |---|---|
 | `source` | hyprland, sway, fish, bash |
@@ -304,8 +349,23 @@ resolved.**
 | `@import` | waybar `style.css`, GTK css, any css |
 | `require` / `dofile` | awesome, lua-configured tools |
 
-The keyword table is ~10 lines and does not have to be complete; an unrecognised
-directive just means that reference is not checked, exactly as today.
+The keyword table is ~10 lines and does not have to be complete — extractor 2 does not
+consult it at all. `$(dirname "${BASH_SOURCE[0]}")` and `$(dirname "$0")` both mean "the
+directory of this file" and are substituted as such; that one substitution is what turns
+a rice's own scripts from unreadable into checkable.
+
+**Three exclusions, each one found by running the check over `example/` and reading the
+false positives.** Without them the first real bundle reports 25 problems, of which 10 are
+real:
+
+| Excluded | Why |
+|---|---|
+| `~/.cache/…`, `~/.local/state/…`, `/tmp`, `$XDG_RUNTIME_DIR`, and non-dot directories in `~` (`~/Pictures`) | **runtime paths, not bundle content.** `QS_CACHE_DIR="$HOME/.cache/quickshell"` is a directory the script creates, not a file anyone forgot to ship. Only `~/.config`, `~/.local/{bin,share}` and dotfiles directly in `~` map into a bundle at all — everything else under `~` belongs to the user and to runtime |
+| the bundle's own `README.md` and `dotfiles.toml` | they **describe** paths, they do not consume them. Scanning them turns every path named in the documentation into a fake finding |
+| a keyword line whose value contains `$(` | hand it to the substitution above instead. `source "$(dirname "${BASH_SOURCE[0]}")/caching.sh"` starts with `source`, so extractor 1 grabs it first and takes `$(dirname ` as the filename |
+
+The first row is the one that matters: a check that cries wolf on `~/.cache` gets switched
+off, and then the real ten go unreported with it.
 
 Resolution, and what each outcome means:
 
@@ -352,7 +412,26 @@ Installed by the upstream rice's `curl | sh`, while `extra` has shipped it all a
 Without the fallback the component is dropped and the receiver ends up with no prompt.
 `/usr/local/bin`, `~/.local/bin` and `~/.cargo/bin` are where this happens.
 
-Only when **both** fail is the command genuinely unpackaged — then it is a script that
+**`-Qoq` may answer with a name that is not the command, and that is not an error.** On
+this machine:
+
+```
+$ pacman -Qoq $(command -v quickshell)   → noctalia-qs
+$ expac -Q '%S' noctalia-qs              → quickshell  quickshell-git
+$ pacman -Ss '^quickshell-git$'          → (nothing)
+```
+
+`noctalia-qs` **provides** both names. `pacman -Ss` searches names and descriptions, never
+provides, so it reports nothing and the obvious conclusion — "there is no such package" —
+is wrong. Two rules follow, and the example bundle needed both:
+
+- **Never conclude a package does not exist from `-Ss`.** `pacman -Si <name>` resolves a
+  provide; `-Ss` does not.
+- **Write the name that can be installed anywhere**, not the local provider. `noctalia-qs`
+  is one machine's accident; `quickshell` is in `extra` and is what the receiver needs.
+  When the two differ, the scan offers both and says which is which.
+
+Only when **both** `-Qoq` and `-F` fail is the command genuinely unpackaged — then it is a script that
 belongs in the bundle under `local/bin/`, or a `url` in `components` and a manual step.
 
 `pacman -F` needs the file database (`pacman -Fy`); the TUI says so once, and everything

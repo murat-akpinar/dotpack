@@ -39,7 +39,7 @@ mode    = "symlink"
 services = ["hypridle", "swayosd"]
 
 ignore = [
-  "config/hypr/colors.conf",     # regenerated from the wallpaper on every login
+  "config/hypr/settings.json",   # regenerated, and its reader falls back when absent
   "config/hypr/scripts/*.log",
 ]
 
@@ -146,6 +146,51 @@ manual step and is never fetched.
 | `ignore` | string[] | the list below | Globs relative to the bundle root. **Collect-time only:** a matching path is never written into the bundle. It has no meaning at install time — `~/.config/hypr` is one directory link, there is no per-file decision left to make. A written list is **added to** the default, it does not replace it. |
 | `assets` | object[] | `[]` | Destinations outside the convention. `{ "src": "...", "dest": "..." }`. `~` is expanded inside `dest`. **Assets are copied, never linked**, and a switch does not remove them — `dest` is usually a directory the user owns (`~/Pictures/wallpapers`), and adopting it into a bundle would be an unpleasant surprise. An existing file of the same name is not overwritten; it is reported. |
 
+Always ignored (no need to write these):
+
+```
+.git/  node_modules/  *.mp4  *.gif  *.log
+Code/  */History/  *Trust Tokens*  *.ovpn
+```
+
+`preview/` is **not** on that list, though the media inside it usually is: `*.mp4` and
+`*.gif` cover the 21 MB promo video, while the one screenshot the `preview` field points
+at is the whole reason the directory exists.
+
+In the two repos that were examined: 21 MB of 76.5 MB was a promo video, 29 MB of 273 MB
+was VS Code state. Both are pure dead weight at install time
+([real-world.md](./real-world.md) F8, F16).
+
+**A generated file is only safe to `ignore` if its reader tolerates absence.** That is
+the whole test, and it is not a property of the file — it is a property of the line that
+reads it. Both of this rice's generated files look identical from the outside and only
+one of them can go:
+
+| File | Read by | Safe? |
+|---|---|---|
+| `settings.json` | `workspaces.sh:40`, with `# fallback to 8` on the line above | ✅ ignore it |
+| `colors.conf` | `hyprland.conf:15`, `source =`, unconditional | ❌ ship it |
+
+`source`-ing a file that is not there is a config error on the receiver's screen, and
+`ignore` cannot save you from it: `~/.config/hypr` is placed as one directory link, so
+there is no install-time decision left to make. Same for machine-specific files —
+`ignore`-ing `monitors.conf` does not stop `hyprland.conf` from sourcing it. Ship it with
+your values and say "edit this" in the README, or drop the `source` line too.
+[design.md §7](./design.md) spells the two options out; the §5.1 reference check reports
+the mistake at collect time rather than on the receiver's screen.
+
+There is **no** file list. What goes where comes from the directory layout
+([design.md §2](./design.md)):
+
+```
+config/<X>  → ~/.config/<X>
+home/<X>    → ~/<X>
+local/<X>   → ~/.local/<X>
+assets/<X>  → only if declared in the "assets" field
+```
+
+### mode = "external"
+
 **`mode = "external"`** — the bundle places no files; `dotfiles.toml` carries only
 `packages` + `components`, and chezmoi / stow / bare-git places the files.
 
@@ -165,35 +210,6 @@ touch files.** The user runs `chezmoi apply` themselves.
 This is not a fallback plan, it is **the way the standard spreads.** Adding one file to an
 existing chezmoi repo is far lower friction than migrating that repo to our layout. The
 format has to make sense without our tool — [standard.md](./standard.md).
-
-Always ignored (no need to write these):
-
-```
-.git/  node_modules/  preview/  *.mp4  *.gif  *.log
-Code/  */History/  *Trust Tokens*  *.ovpn
-```
-
-In the two repos that were examined: 21 MB of 76.5 MB was a promo video, 29 MB of 273 MB
-was VS Code state. Both are pure dead weight at install time
-([real-world.md](./real-world.md) F8, F16).
-
-Typical use of `ignore`: generated files (`colors.conf`, `settings.json`), logs, caches.
-
-**Careful with machine-specific files.** `ignore`-ing `monitors.conf` does not make the
-receiver's `hyprland.conf` stop `source`-ing it — it makes that `source` line fail.
-Either ship the file and say "edit this" in the README, or drop the `source` line as well.
-[design.md §7](./design.md) spells the two options out; the §5.1 reference check reports
-the mistake at collect time rather than on the receiver's screen.
-
-There is **no** file list. What goes where comes from the directory layout
-([design.md §2](./design.md)):
-
-```
-config/<X>  → ~/.config/<X>
-home/<X>    → ~/<X>
-local/<X>   → ~/.local/<X>
-assets/<X>  → only if declared in the "assets" field
-```
 
 ### services
 
@@ -227,7 +243,9 @@ post_install = "hooks/post-install.sh"
   forces a rerun.
 - Can be skipped entirely with `--no-hooks`.
 - Working directory is the bundle root. Environment variables: `DP_BUNDLE_DIR`, `DP_MODE`.
-- Exit code ≠ 0 → a warning, the install does not stop (the files are already in place).
+- Exit code ≠ 0 → a warning; the install continues and nothing is rolled back. That holds
+  for `pre_install` too, which runs before the packages: a hook that could not add a repo
+  is not a reason to abandon a switch that has not started.
 
 ---
 
@@ -247,7 +265,9 @@ Warning (installation continues):
 - `schema` is greater than the known version
 - `distro` is not `arch`
 - `wm` does not match the machine's WM
-- an `ignore` glob matches nothing (possible typo)
+- **at collect time only**, an `ignore` glob matches nothing in the source tree (possible
+  typo). It is not checked when reading a bundle: an ignored path is by definition absent
+  from the bundle, so there every correct glob would match nothing
 - a duplicate name in a package list
 - a `source` / `include` / `@import` inside a shipped config points at a file the bundle
   does not ship ([design.md §5.1](./design.md)) — the single most common way a bundle

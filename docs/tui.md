@@ -144,7 +144,7 @@ moment this screen appears, and step 2 is already populated when the user gets t
 │  [x] noto-fonts     extra          font: gtk-3.0/settings.ini  │
 │  [x] ttf-cascadia-mono-nerd  extra  font: kitty font_family -F │
 │  [ ] systemd        core           config: exec-once  ⚠ base   │
-│  [?] waybar         —              in config, not installed    │
+│  [?] waybar         extra          in config, not installed    │
 │                                                                │
 │  + add a package by hand                                       │
 ├────────────────────────────────────────────────────────────────┤
@@ -154,7 +154,10 @@ moment this screen appears, and step 2 is already populated when the user gets t
 
 - The third column says **why** that package is in the list. That is the only way to weed
   out false positives.
-- `[?]` = appears in the config but is not installed (found with `pacman -F`).
+- `[?]` = appears in the config but is not installed here. `pacman -F` found which
+  package provides it, so the repo column is filled in — that is the whole point of the
+  lookup. A row with no repo would mean nothing resolved it, and that row does not exist:
+  it is either a package or it is dropped (§5).
 - `⚠ base` = from the `base`/`base-devel` group, probably unnecessary.
 - `-F` in the reason means the font is installed **by hand** on this machine but a repo
   package ships it ([design.md §5.2](./design.md)). Ticking it turns a 40 MB directory the
@@ -176,12 +179,15 @@ is", and neither can be skipped when it has content.
 │                                                                │
 │  To include them anyway, go back to step 2 and tick them.      │
 │                                                                │
-│  ⚠ 2 references point outside the bundle                       │
+│  ⚠ 3 references point outside the bundle                       │
 │                                                                │
 │   config/kitty/kitty.conf:21  include catppuccin.conf          │
 │                               → not selected      [a] add it   │
-│   config/waybar/style.css:1   @import ../shared/colors.css     │
-│                               → outside ~/.config  [i] ignore  │
+│   config/hypr/…/autostart.conf:12                              │
+│     --style $HOME/.config/swayosd/style.css                    │
+│                               → not selected      [a] add it   │
+│   config/hypr/scripts/x.sh:5  ~/.config/hypr/scripts/weather.sh│
+│                               → does not exist    [i] ignore   │
 │                                                                │
 │  Shipping kitty.conf without catppuccin.conf ships a kitty     │
 │  that errors on every start.                                   │
@@ -190,6 +196,12 @@ is", and neither can be skipped when it has content.
 │ a add the file   i ignore   tab next   shift-tab back          │
 └────────────────────────────────────────────────────────────────┘
 ```
+
+The second row is the shape that matters: no directive on the line, just a path in an
+argument ([design.md §5.1](./design.md) extractor 2). It is the common case, and a
+keyword-only check shows an empty screen here. The third has no `[a]` worth offering —
+the file is missing on this machine too, so the reference is already dead upstream and
+only `[i]` makes sense.
 
 The secret half and the reference half are the same idea from opposite directions: one
 catches a file that **should not** be in the bundle, the other a file that **should** be.
@@ -291,7 +303,7 @@ are used. It would be ironic for a ricing tool to override the user's own theme.
 
 ## 7. Keymap
 
-Consistent across all screens:
+**Global — the same on every screen, never rebound by one:**
 
 | Key | Job |
 |---|---|
@@ -302,9 +314,22 @@ Consistent across all screens:
 | `esc` | back, cancel |
 | `tab` / `shift-tab` | forward / back in the wizard |
 | `/` | search (filter the list) |
-| `a` / `n` | select all / none |
 | `?` | help window |
 | `q` / `ctrl-c` | quit |
+
+**Screen-local — letter keys, always spelled out in that screen's footer:**
+
+| Key | Main screen | Checklist screens | Warnings |
+|---|---|---|---|
+| `a` | add a bundle | select all | add the file |
+| `n` | — | select none | — |
+| `d` | delete a bundle | remove a package | — |
+| `c` `s` `-` | collect / sync / previous | — | — |
+| `i` | — | — | ignore |
+
+The split is the honest one: the global rows are muscle memory and must never change
+meaning, while a letter on a checklist screen and a letter on a bundle list are simply
+different verbs. The footer is the contract — a screen that uses a letter prints it.
 
 `enter` is never destructive — it always leads to a plan screen, and the `enter` on the plan
 screen applies.

@@ -23,7 +23,7 @@ Effort unit: **a weekend** (~8 hours). Rough, not optimistic.
 | **M2** | **collect** — you no longer hand-write the bundle | 2 | M1 |
 | **M3** | **Author tools** — `post`, the generated README | 1.5 | M2 |
 | **M4** | **Sharing** — `add github:…` | 2 | M1 |
-| **M5** | **`external` mode** — alongside chezmoi/stow | 1 | M0 |
+| **M5** | **`external` mode** — alongside chezmoi/stow | 1 | M0 · M2 for `collect --external` |
 | **M6** | TUI | 3 | M1–M4 |
 | **M7** | Release prep | 2 | all |
 
@@ -49,8 +49,6 @@ tool behind.
 
 ## Phase 0 — Answer before writing code
 
-- [x] **License** — GPL-3.0, `LICENSE` is committed. (The `MIT` in the doc examples is a
-      *bundle's* own license field, not the project's.)
 - [ ] **If package installation blows up during `use`** — finish the switch or roll it back?
       (Rolling back requires the ledger to be transactional; it changes M1's shape.)
 - [ ] **Local-path bundles** — a symlink in the store, or an absolute path in `state.toml`?
@@ -64,7 +62,8 @@ tool behind.
 
 Answered, recorded here so they stop being re-asked:
 
-- **License** → GPL-3.0.
+- **License** → GPL-3.0, `LICENSE` committed. The `MIT` in the doc examples is a
+  *bundle's* own license field, not the project's.
 - **`name` uniqueness** → it is the store directory name; `--as` renames on collision.
 - **`version`** → bumped by hand, never by the tool. `sync` does not touch it.
 - **git URLs in v1** → yes, `add`/`use` take them (M4).
@@ -123,14 +122,28 @@ the repo. No `collect`, no ecosystem, nobody else's repo required.
 - [ ] `apply.rs` — `fc-cache -f` when anything under `~/.local/share/fonts` changed
 - [ ] `apply.rs` — services: `enable --now`, and `disable --now` on the way out
 - [ ] `apply.rs` — WM reload
+- [ ] `hooks_ran` is written to the ledger but stays empty — **hooks do not run until M4.**
+      `example/` has none, so M1's fixture is unaffected; a bundle that has one gets it
+      skipped, and the plan says so rather than pretending
 - [ ] `use -` (previous bundle)
 - [ ] `ls` — bundles in the store, which is active, detached count
-- [ ] `sync` — detect detached links, write back into the bundle, re-link
-- [ ] `sync` — run the §6 content scan on anything it writes back
+- [ ] `sync` — detect detached links, report them, and re-link (backing up the foreign file)
+- [ ] `refs.rs` is **not** needed here — M1 installs a bundle, it does not judge one
 
-**Done means:** `dotpack use example` on a temporary `HOME` produces a working hyprland
-setup, and after A → B → `use -` the filesystem is bit-for-bit identical to the start,
+`sync`'s **write-back** half is deliberately not in M1: the moment a file enters the
+bundle it has to pass the §6 content scan, and `scan/secrets.rs` is M2. Detect + re-link
+covers the case that actually bites (GTK ate the link), and it needs no scanner.
+
+**Done means:** `dotpack use example` on a temporary `HOME` places **every file and
+package the bundle declares** — links at the right depth, packages installed, services
+enabled — and after A → B → `use -` the filesystem is bit-for-bit identical to the start,
 adopted backups and created directories included.
+
+Not *"produces a working rice"*: `example/` is deliberately incomplete (no
+`scripts/quickshell/`, so no bar and no launcher — `example/README.md` says which gaps and
+why). Judging M1 on the rice booting would be judging it on bundle content it does not
+own. The full-rice claim is the acceptance test above, and it needs M4 plus the missing
+content.
 
 ---
 
@@ -140,24 +153,36 @@ Stops the bundle from having to be hand-written.
 
 ### Scan (reads only)
 - [ ] `scan/wm.rs` — WM detection + per-WM key tables
-- [ ] `scan/refs.rs` — `source` / `include` / `@import` resolution, **not WM-specific**
+- [ ] `scan/refs.rs` — extractor 1: `source` / `include` / `@import`, **not WM-specific**
+- [ ] `scan/refs.rs` — extractor 2: any `~/`, `$HOME/`, `$(dirname …)/` token, **anywhere on
+      the line** — this is the one that finds nine of `example/`'s ten dangling references
 - [ ] `scan/refs.rs` — classify each reference: in-bundle / addable / system path / dead
 - [ ] `scan/deps.rs` — extract commands, strip the `uwsm app --` / `sh -c` wrappers
 - [ ] `scan/deps.rs` — drop builtin and coreutils noise
 - [ ] `scan/deps.rs` — attach a `reason` to every suggestion
+- [ ] `scan/deps.rs` — `-Qoq` may return a **provider** (`noctalia-qs` for `quickshell`):
+      offer the installable name, never conclude "no such package" from `pacman -Ss`
 - [ ] `scan/fonts.rs` — `fc-match`, compare the returned family, warn if it fell back
 - [ ] `scan/fonts.rs` — `-Qoq` → **`pacman -F <basename>`** → ship the files, in that order
 - [ ] `scan/fonts.rs` — GTK theme / icons / cursor, same three steps
 - [ ] `scan/secrets.rs` — deny-list (including shell history)
 - [ ] `scan/secrets.rs` — content patterns, findings unticked by default
 - [ ] `scan/secrets.rs` — the same scan runs against the **active bundle** for `ls`
-- [ ] `apply.rs::write_bundle()` — the bundle directory + `dotfiles.toml` + `README.md`
-- [ ] `ignore` applies **here and only here**
+- [ ] `apply.rs::write_bundle()` — the bundle directory + `dotfiles.toml`
+      (`README.md` is added in M3, where its renderer is written)
+- [ ] `ignore` applies **here and only here**, and the "matches nothing" warning is
+      checked against the source tree, never against a bundle
+- [ ] `sync` write-back — the deferred half of M1, now that `secrets.rs` exists
 - [ ] collect must not walk into the active bundle through its own symlinks
 
-**Done means:** `collect` run on this machine reproduces `example/` — including
-`ttf-cascadia-mono-nerd` in `packages` rather than a `url`, and including
-`config/kitty/catppuccin.conf`, which the hand-written version forgot.
+**Done means:** `collect` run on this machine, with the same directories ticked, produces
+a bundle whose `dotfiles.toml` **matches `example/`'s** — `ttf-cascadia-mono-nerd` and
+`starship` as packages rather than urls, `quickshell` rather than the `quickshell-git`
+provide, and `config/kitty/catppuccin.conf` present, which the hand-written version forgot.
+
+The file trees will differ and that is correct: `example/` is hand-trimmed (no `fish/`, no
+27 MB `quickshell/`) and those are *selections*, made in step 2 of the wizard. The manifest
+is the part `collect` is responsible for.
 
 ---
 
@@ -200,11 +225,13 @@ list exactly.
 
 ## M5 — `external` Mode · 1 weekend
 
-The way the standard spreads. Can be done at any point after M0.
+The way the standard spreads. The reading half can be done at any point after M0; the
+writing half is a flag on a command that does not exist until M2.
 
 - [ ] `mode = "external"` — do not touch files, install packages, show roles
 - [ ] The `managed_by` field (informational, the tool is not called)
 - [ ] `collect --external` — generate only the manifest for an existing chezmoi/stow repo
+      **(needs M2)**
 - [ ] A clear warning in the install summary: "you will place the files with `chezmoi apply`"
 
 **Done means:** a single `dotfiles.toml` added to Brozi's chezmoi repo installs the
@@ -236,7 +263,6 @@ without applying anything.
 - [ ] Test on a clean user with no helper installed
 - [ ] Publish an example bundle repo — the reference people will look at
 - [ ] Publish the spec as a document separate from the tool (`docs/standard.md` + `manifest.md`)
-- [ ] License file
 
 ---
 
@@ -247,7 +273,7 @@ without applying anything.
   someone genuinely asks, it is a flag on `add`, not a mode in the manifest.
 - **Fetching a component's `url`** — not deferred either; it is a thing we do not do. A
   font that matters ships in `local/share/fonts/`.
-- **`import <repo>`** — generate a draft manifest from a foreign rice's installer. There are zero repos in the world containing `dotfiles.toml` today; but the adoption lever is `post` (M2), not this. Later.
+- **`import <repo>`** — generate a draft manifest from a foreign rice's installer. There are zero repos in the world containing `dotfiles.toml` today; but the adoption lever is `post` (M3), not this. Later.
 - Template engine — machine-specific data (monitor name, DPI). In v1 the only remedy is `ignore`. Known ceiling.
 - The `modes` field — `chmod 600` / `444`. Git only tracks the exec bit.
 - `use --prune` — suggest packages no bundle wants anymore

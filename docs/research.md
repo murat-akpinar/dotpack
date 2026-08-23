@@ -212,15 +212,26 @@ and Rust, performance is irrelevant here (a few hundred lines of list rendering)
 Bubble Tea's ready-made checklist/filepicker components cut the required code
 significantly.
 
+> **Note (added later): not what was chosen.** The project is **Rust + ratatui**
+> ([tui.md](./tui.md), [design.md §8](./design.md)). The single-binary requirement is
+> satisfied either way, and the checklist widget Bubble Tea would have donated turns out
+> to be one `List` plus our own selection state — a rung on the ladder, not a framework
+> choice. This section stays as the research record.
+
 ---
 
-## 9. Open Questions (must be answered for the design)
+## 9. Open Questions (answered — kept as the record)
 
-1. File mode: is symlink or copy the default? (git-tracked or independent)
-2. What happens to existing configs during install — back up / overwrite / ask?
-3. Should the manifest contain only explicitly installed packages, or everything discovery finds?
-4. If a package cannot be found on the other side: stop, skip, or offer an alternative?
-5. Will v1 include installation, or only collection + manifest generation?
+> **Note (added later):** none of these are open. The one live list is
+> [TODO.md](../TODO.md) § Phase 0.
+
+| | Question | Answer |
+|---|---|---|
+| 1 | symlink or copy by default? | **symlink, and `copy` was removed entirely** ([design.md §4.4](./design.md)) |
+| 2 | existing configs during install? | backed up into `~/.local/state/dotpack/backups/`, recorded in the ledger, restored on removal |
+| 3 | explicit packages only, or everything discovery finds? | discovery **suggests**, the user ticks ([design.md §5](./design.md)) |
+| 4 | package not found on the other side? | search the AUR → ask → report and continue. One package never stops an install |
+| 5 | does v1 install, or only collect? | it installs. `use` is the whole point |
 
 ---
 

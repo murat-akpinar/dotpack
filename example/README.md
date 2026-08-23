@@ -19,7 +19,7 @@ ships.
 
 | | install.sh | dotfiles.toml |
 |---|---|---|
-| Lines to read | 1898 | 72 |
+| Lines to read | 1898 | 80 |
 | Package list | array at line 157 | `[packages]` |
 | What each package is for | — | `[components]` |
 | Root services | enabled with sudo | not permitted; a hook you read first |
@@ -56,12 +56,16 @@ machine's two monitors in it — **edit it after installing.** `ignore` is a
 collect-time filter, not an install-time one; a directory link has no per-file
 granularity to skip anything with. `docs/design.md` §7.
 
-So this is a real bundle, deliberately trimmed. When `collect` exists it will
-produce this directory instead of it being assembled by hand.
+So this is a real bundle, deliberately trimmed. When `collect` exists it will write
+the `dotfiles.toml` instead of it being assembled by hand — but not this exact tree:
+what is in `config/` came from ticking directories on the wizard's step 2, and those
+ticks are a human's call, here and afterwards.
 
 ## What the collection turned up
 
-Four things the design had assumed away, found on a real machine.
+Seven things the design had assumed away, found on a real machine. Two of them are
+mistakes made *while writing this file*, which is the point: the checks below exist
+because a careful human doing it by hand got it wrong.
 
 **1–3: `pacman -Qoq` returns nothing for three components.** `starship` sits in
 `/usr/local/bin` (its own curl script put it there), the terminal font is in
@@ -72,13 +76,21 @@ The first conclusion was "no package owns them, so ship the files or declare a
 `url`". That was wrong for two of the three:
 
 ```
-$ pacman -Ss '^starship$'   → extra/starship 1.26.0-1
-$ pacman -Ss cascadia       → extra/ttf-cascadia-mono-nerd 3.5.1-1
+$ pacman -Si starship               → extra/starship 1.26.0-1
+$ pacman -Si ttf-cascadia-mono-nerd → extra/ttf-cascadia-mono-nerd 3.5.1-1
 ```
 
-`-Qoq` answers *which package installed this file* and correctly says nobody.
-The useful question is *which package could provide it*, and `pacman -F` on the
-basename answers it. Both are now plain entries in `[packages]`, which is how the
+`-Qoq` answers *which package installed this file* and correctly says nobody. The
+useful question is *which package could provide it*. Both were confirmed by name
+above, but a scan does not know the name — it has a **file**, and the file database
+answers that: `pacman -F CaskaydiaMonoNerdFontMono-Regular.ttf`. That needs
+`pacman -Fy`, which has never been run on this machine, so the `-F` form is the one
+thing in this file that is reasoned rather than executed.
+
+It is still the right call and not interchangeable with a name search:
+`pacman -Ss CaskaydiaMonoNerdFontMono-Regular.ttf` returns **nothing** — `-Ss` reads
+names and descriptions, not file lists. Item 6 below is what happens when that
+distinction is missed. Both are now plain entries in `[packages]`, which is how the
 receiver should get them — not 40 MB of `.ttf` in the repo and not a link to a
 release page. Only the cursor keeps its `url`: nothing in the repos ships it, and
 a `url` means **"install this yourself"**, printed in the summary, never fetched.
@@ -90,16 +102,34 @@ the rice's colours. Nothing caught it, because reference following was specified
 for WM configs only and kitty is not a WM. It is a general rule now
 (`docs/design.md` §5.1), and the file is here.
 
-**5: running that rule by hand over the rest of this directory found nine more
-dangling references**, one from each category §5.1 defines. Worth listing,
+**5: running that rule over the rest of this directory found eleven more dangling
+references** — and none of them is an `include`. They are paths sitting in ordinary
+argument position:
+
+```
+autostart.conf:12  exec-once = swayosd-server --style "$HOME/.config/swayosd/style.css"
+qs_manager.sh:6    SCRIPTS_DIR="$HOME/.config/hypr/scripts/quickshell"
+```
+
+That is the second thing this directory changed about §5.1. A keyword table would have
+passed this bundle; the rule is now "any token starting `~/`, `$HOME/` or `$(dirname …)/`",
+with keywords kept only for the bare relative case kitty uses. Worth listing them all,
 because together they are the argument for the check existing:
 
 | Reference | Category | What happened |
 |---|---|---|
 | `~/.config/swayosd/style.css` — `autostart.conf:12` | not selected | a real miss; `config/swayosd/` was not collected at all though `swayosd-git` is in `[packages]`. **Now shipped.** |
-| `~/.config/hypr/settings.json` — `workspaces.sh:40` | ignored on purpose | fine, and the reason is visible on the line above it: `# fallback to 8`. The consumer tolerates absence, which is what makes a generated file safe to `ignore` |
+| `~/.config/hypr/settings.json` — `settings_watcher.sh:4`, `workspaces.sh:40` | ignored on purpose | fine, and the reason is visible on the line above the second one: `# fallback to 8`. The consumer tolerates absence, which is what makes a generated file safe to `ignore` |
 | `~/.config/hypr/scripts/weather.sh` — `settings_watcher.sh:5` | **dead** | it does not exist on the source machine either. Upstream's script references a file that was never there — the bundle inherited a bug rather than created one |
-| `~/.config/hypr/scripts/quickshell/…` ×6 | not selected, deliberately | see below |
+| `~/.zshrc` — `settings_watcher.sh:16` | **dead** | `ZSH_RC="$HOME/.zshrc"` is assigned and never read again. Left over from when this rice was zsh; the machine runs fish |
+| `~/.config/hypr/scripts/quickshell/…` ×7 | not selected, deliberately | see below |
+
+**These counts are not from reading by eye — they are what the rule produces when it is
+actually run**, and running it is how the `~/.zshrc` row and the seventh quickshell target
+got here at all. As the bundle stands today the check reports **ten** dangling references:
+seven quickshell, `weather.sh`, `settings.json`, `~/.zshrc`. Two more were on the list
+before this pass and are gone because the files now ship — `catppuccin.conf` and
+`swayosd/style.css`.
 
 **The quickshell hole is the honest one.** `scripts/quickshell/` is the rice's
 entire UI — bar, launcher, lock screen, screenshot overlay — and it was left out
@@ -118,10 +148,27 @@ That is `ignore` doing its real job — dropping dead weight on the way in, not
 trying to skip a file at install time. Left undone here as a deliberate call about
 what belongs in *this* repo, not because the bundle is better without it.
 
-**6: `quickshell-git` was in `[packages]`, and no such package exists.** Not in any
-repo, not installed on the source machine. `pacman -Qoq $(command -v quickshell)`
-names the real provider in one call. A hand-written manifest guessed a plausible
-name and nothing checked it — `collect` would not have. It is `quickshell` now.
+**6: `quickshell-git` was in `[packages]`, and checking it produced a confident wrong
+answer.**
+
+```
+$ pacman -Ss '^quickshell-git$'          → (nothing)          "so it does not exist"
+$ pacman -Qoq $(command -v quickshell)   → noctalia-qs
+$ expac -Q '%S' noctalia-qs              → quickshell  quickshell-git
+```
+
+It exists. `noctalia-qs` **provides** both names and is installed right now — `pacman -Ss`
+searches names and descriptions, never provides, so the obvious reading was backwards.
+The entry is `quickshell` now, not because `quickshell-git` was fake but because
+`extra/quickshell` is the name a *receiver* can install; `noctalia-qs` is this machine's
+accident. `docs/real-world.md` F20.
+
+**7: six `components` named packages that `[packages]` did not install.** `fish`,
+`neovim` and `adwaita-icon-theme` were declared as the shell, editor and icon theme and
+then never installed — and `shell = "fish"` while upstream's installer `chsh`es to zsh is
+the one that actually bites. All three are in `[packages]` now. This is the
+`components[].pkg` warning in `docs/manifest.md` doing its job on the very first bundle
+written in the format; the manifest now produces **zero** warnings.
 
 ---
 
