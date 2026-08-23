@@ -19,6 +19,7 @@ pub const SCHEMA: u32 = 1;
 /// Never collected into a bundle. A manifest's own `ignore` is *added* to this list,
 /// it does not replace it. `preview/` is deliberately absent — the video patterns
 /// already cover the dead weight, and the screenshot is why the directory exists.
+#[allow(dead_code)] // read by collect, M2
 pub const DEFAULT_IGNORE: &[&str] = &[
     ".git/",
     "node_modules/",
@@ -190,6 +191,8 @@ impl Manifest {
         toml::from_str(&text).with_context(|| format!("{}", file.display()))
     }
 
+    /// Callers: `apply::write::write_bundle()`, M2. Exercised by the round-trip test.
+    #[allow(dead_code)]
     pub fn to_toml(&self) -> Result<String> {
         Ok(toml::to_string_pretty(self)?)
     }

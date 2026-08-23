@@ -49,6 +49,9 @@ tool behind.
 
 ## Phase 0 — Answer before writing code
 
+- [ ] **When are `assets` copied** — first activation only, or every switch? `design.md`
+      §4.2's thirteen steps have no asset step at all, and no bundle in the repo has one.
+      `bundle::assets()` maps the paths and nothing calls it (M1)
 - [ ] **Where `collect` writes** — is `~/dotfiles/` the default, or is `--out` mandatory? (M2)
 - [ ] **A half-finished collect wizard** — save state for `--resume`, or start over? (M6)
 - [ ] **`/` search** — filter the list, or jump to the match? (M6)
@@ -71,6 +74,11 @@ Answered, recorded here so they stop being re-asked:
   user's behalf is destruction they did not ask for.
 - **Uncommitted changes on switch** → **warn, do not block.** It is their repo, and in
   symlink mode their edits are already in it — switching away loses nothing.
+
+- **`use -` with no previous bundle** → **deactivate.** The state before the first
+  activation was "nothing placed", so that is where going back has to land. It also gives
+  the only way out of `rm`'s refusal without inventing a verb the design's table does not
+  have.
 
 **Earlier:**
 
@@ -138,29 +146,27 @@ the repo. No `collect`, no ecosystem, nobody else's repo required.
       caller; written here they would be untested code with nothing calling it
 
 ### Apply (the only writing module — `src/apply/`, see `design.md` §8)
-- [ ] `apply/ledger.rs` — `state.toml`: `active`, `previous`, links, `mkdirs`, `hooks_ran`
-- [ ] `apply/backup.rs` — adoption: a real file at the target → backup + ledger entry
-- [ ] `apply/backup.rs` — restore the adopted backup when a link is removed for good
-- [ ] `apply/links.rs` — place links (`config/` by depth rule, `home/`+`local/` per file)
-- [ ] `apply/links.rs` — create intermediate dirs, record them, remove them when left empty
-- [ ] `apply/links.rs` — link diff for switching: remove / repoint / add
-- [ ] `apply/system.rs` — `fc-cache -f` when anything under `~/.local/share/fonts` changed
-- [ ] `apply/system.rs` — services: `enable --now`, and `disable --now` on the way out
-- [ ] `apply/system.rs` — WM reload
-- [ ] `apply/mod.rs` — the sequences, and **nothing else**: `activate()` / `switch()` /
-      `deactivate()` read as `design.md` §4.2 and `profiles.md` §3 do
-- [ ] A package failing does **not** roll the switch back (Phase 0) — it is collected and
-      named in the summary
-- [ ] A local-path bundle is a **symlink in the store** (Phase 0), so `ls`/`use`/`rm` see
-      a directory like any other
-- [ ] `hooks_ran` is written to the ledger but stays empty — **hooks do not run until M4.**
-      `example/` has none, so M1's fixture is unaffected; a bundle that has one gets it
-      skipped, and the plan says so rather than pretending
-- [ ] `use -` (previous bundle)
-- [ ] `ls` — bundles in the store, which is active, detached count
-- [ ] `rm <name>` — refuses while the bundle is active, says `use -` first (Phase 0)
-- [ ] `sync` — detect detached links, report them, and re-link (backing up the foreign file)
-- [ ] `refs.rs` is **not** needed here — M1 installs a bundle, it does not judge one
+- [x] `apply/ledger.rs` — `state.toml`: `active`, `previous`, links, `mkdirs`, `hooks_ran`
+- [x] `apply/backup.rs` — adoption: a real file at the target → backup + ledger entry
+- [x] `apply/backup.rs` — restore the adopted backup when a link is removed for good
+- [x] `apply/links.rs` — place links (`config/` by depth rule, `home/`+`local/` per file)
+- [x] `apply/links.rs` — create intermediate dirs, record them, remove them when left empty
+- [x] `apply/links.rs` — link diff for switching: remove / repoint / add
+- [x] `apply/system.rs` — `fc-cache -f` when anything under `~/.local/share/fonts` changed
+- [x] `apply/system.rs` — services: `enable --now`, and `disable --now` on the way out
+- [x] `apply/system.rs` — WM reload
+- [x] `apply/mod.rs` — the sequences, and **nothing else**
+- [x] A package failing does **not** roll the switch back (Phase 0) — `pacman -T` runs again
+      after the install and whatever it still reports is the failure list, named
+- [x] A local-path bundle is a **symlink in the store** (Phase 0)
+- [x] `hooks_ran` is written to the ledger but stays empty — **hooks do not run until M4.**
+      A bundle that declares one is told so in the plan and in the summary
+- [x] `use -` (previous bundle), and with no previous bundle it deactivates
+- [x] `ls` — bundles in the store, which is active, detached count (the secret count needs
+      `scan/secrets.rs`, M2)
+- [x] `rm <name>` — refuses while the bundle is active, says `use -` first (Phase 0)
+- [x] `sync` — detect detached links, report them, and re-link (backing up the foreign file)
+- [x] `refs.rs` is **not** needed here — M1 installs a bundle, it does not judge one
 
 `sync`'s **write-back** half is deliberately not in M1: the moment a file enters the
 bundle it has to pass the §6 content scan, and `scan/secrets.rs` is M2. Detect + re-link
@@ -170,6 +176,14 @@ covers the case that actually bites (GTK ate the link), and it needs no scanner.
 package the bundle declares** — links at the right depth, packages installed, services
 enabled — and after A → B → `use -` the filesystem is bit-for-bit identical to the start,
 adopted backups and created directories included.
+
+✅ Done — `tests/switch.rs`, which drives the real binary against a temporary `HOME` with
+`pacman`, `sudo`, `systemctl`, `fc-cache`, `hyprctl` and all four AUR helpers stubbed on
+`PATH`. Package installation is therefore *planned* in the test, not performed: a test
+that installs 76 packages and enables easyeffects on the machine running it is not a test.
+The plan itself was checked against the real `pacman -T` on this machine — it reports
+exactly `starship` and `ttf-cascadia-mono-nerd` missing, which are precisely the two the
+docs describe as hand-installed here.
 
 Not *"produces a working rice"*: `example/` is deliberately incomplete (no
 `scripts/quickshell/`, so no bar and no launcher — `example/README.md` says which gaps and

@@ -43,6 +43,11 @@ impl Bundle {
     }
 
     /// `assets` are **copied**, never linked, so they are not part of `links()`.
+    ///
+    /// ponytail: no caller yet. design.md §4.2's sequence has no step that copies them
+    /// and no bundle in the repo has any, so *when* they are copied — first activation
+    /// only, or every switch — is an open question in TODO.md Phase 0.
+    #[allow(dead_code)]
     pub fn assets(&self) -> Vec<(PathBuf, PathBuf)> {
         self.manifest
             .assets
@@ -135,6 +140,24 @@ pub fn safe_rel(p: &str) -> bool {
     let p = Path::new(p);
     p.components()
         .all(|c| matches!(c, Component::Normal(_) | Component::CurDir))
+}
+
+/// Every bundle directory in the store, sorted. Local-path bundles are links in there
+/// and read back exactly like any other directory.
+pub fn store_list() -> Result<Vec<PathBuf>> {
+    let mut bundles = Vec::new();
+    match std::fs::read_dir(paths::store()) {
+        Ok(entries) => {
+            for entry in entries {
+                bundles.push(entry?.path());
+            }
+        }
+        // Nothing has ever been added.
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => return Err(e.into()),
+    }
+    bundles.sort();
+    Ok(bundles)
 }
 
 // --- layout end ---
