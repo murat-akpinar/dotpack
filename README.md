@@ -68,6 +68,7 @@ own pre-existing configs are backed up rather than clobbered.
 | [docs/manifest.md](docs/manifest.md) | `dotfiles.toml` full schema reference |
 | [docs/profiles.md](docs/profiles.md) | Local store, rice switching, `github:` syntax |
 | [docs/tui.md](docs/tui.md) | Screens, keymap, ratatui decisions |
+| [example/](example/) | A real rice as a bundle — the 1898-line installer it replaces |
 
 Each doc ends with an **Open Decisions** section. The build order lives in
 [TODO.md](TODO.md) — six milestones, each leaving a usable tool behind.
