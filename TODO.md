@@ -199,10 +199,13 @@ Stops the bundle from having to be hand-written.
 
 ### Scan (reads only)
 - [ ] `scan/wm.rs` — WM detection + per-WM key tables
-- [ ] `scan/refs.rs` — extractor 1: `source` / `include` / `@import`, **not WM-specific**
-- [ ] `scan/refs.rs` — extractor 2: any `~/`, `$HOME/`, `$(dirname …)/` token, **anywhere on
-      the line** — this is the one that finds nine of `example/`'s ten dangling references
-- [ ] `scan/refs.rs` — classify each reference: in-bundle / addable / system path / dead
+- [x] `scan/refs.rs` — extractor 1: `source` / `include` / `@import`, **not WM-specific**
+- [x] `scan/refs.rs` — extractor 2: any `~/`, `$HOME/`, `$(dirname …)/` token, **anywhere on
+      the line** — over `example/` it extracts 82 references against the keyword table's 6
+- [x] `scan/refs.rs` — classify each reference: shipped / addable / system path / dead /
+      unresolved, with the three exclusions. How many survive classification on a real
+      machine is checked when `collect` wires it up — that needs a HOME whose `.config`
+      *is* the rice
 - [ ] `scan/deps.rs` — extract commands, strip the `uwsm app --` / `sh -c` wrappers
 - [ ] `scan/deps.rs` — drop builtin and coreutils noise
 - [ ] `scan/deps.rs` — attach a `reason` to every suggestion

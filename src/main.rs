@@ -3,6 +3,7 @@ mod bundle;
 mod manifest;
 mod paths;
 mod pkg;
+mod scan;
 
 use std::io::Write;
 use std::path::Path;
