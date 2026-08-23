@@ -4,6 +4,7 @@
 
 - *(m0)* Manifest types, layout rules and the CLI skeleton ([15291d5](https://github.com/murat-akpinar/dotpack/commit/15291d5436b066094a92ff8e6357c0778d425fcc)) — The first code in the repo. M0's whole job is that the two things every later milestone reads — the manifest and the layout — are settled and tested before anything writes to a disk.
 - *(pkg)* The package layer, on pacman -T rather than a set difference ([6af5bb4](https://github.com/murat-akpinar/dotpack/commit/6af5bb4bd8e6bc599e2c7ca11116f5edd3342ebc)) — M1's package half. The plan said "installed list via -Qqen / -Qqem" and then subtract; `pacman -T` is one call and it is the one that is correct.
+- *(m1)* Switching — the ledger, links, backups and the use/ls/sync/rm verbs ([bf34dad](https://github.com/murat-akpinar/dotpack/commit/bf34dad4361849bffc801eaa6afb79d0029e44ce)) — After this the tool works. `dotpack use example` places the bundle, `use -` goes back, and the machine ends up where it started.
 
 ### 📚 Documentation
 
