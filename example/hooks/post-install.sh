@@ -19,17 +19,26 @@
 # and not shipped — so on a fresh install it reads `{}` and writes `WALLPAPER_DIR=` with
 # nothing after it. Seeded here, the UI has a directory to put images in; what goes in it
 # is still yours (the bundle ships no wallpapers, see the README).
+#
+# Set every time rather than only when empty. settings.json lives at
+# ~/.config/hypr/settings.json, which is *inside* the bundle, so a value written on one
+# machine is still sitting there on the next one — and "is it already set" cannot tell
+# this machine's path from somebody else's. A hook runs once per bundle per machine, so
+# once is exactly when this should happen; afterwards the settings UI owns the file.
 settings="$HOME/.config/hypr/settings.json"
-if [ ! -s "$settings" ] || [ -z "$(jq -r '.wallpaperDir // empty' "$settings" 2>/dev/null)" ]; then
-    # `xdg-user-dir PICTURES` SUCCEEDS with $HOME when the machine has no user-dirs.dirs,
-    # so a `|| fallback` never fires — the answer has to be looked at, not just tested.
-    pictures=$(xdg-user-dir PICTURES 2>/dev/null)
-    if [ -z "$pictures" ] || [ "$pictures" = "$HOME" ]; then
-        pictures="$HOME/Pictures"
-    fi
-    printf '{"wallpaperDir":"%s/Wallpapers"}\n' "$pictures" > "$settings"
-    mkdir -p "$pictures/Wallpapers"
+# `xdg-user-dir PICTURES` SUCCEEDS with $HOME when the machine has no user-dirs.dirs, so
+# a `|| fallback` never fires — the answer has to be looked at, not just tested.
+pictures=$(xdg-user-dir PICTURES 2>/dev/null)
+if [ -z "$pictures" ] || [ "$pictures" = "$HOME" ]; then
+    pictures="$HOME/Pictures"
 fi
+mkdir -p "$pictures/Wallpapers" "$(dirname "$settings")"
+# Through jq, so the settings UI's other keys survive; a missing or unparseable file
+# falls back to writing the one key.
+if ! jq --arg d "$pictures/Wallpapers" '.wallpaperDir = $d' "$settings" > "$settings.new" 2>/dev/null; then
+    printf '{"wallpaperDir":"%s/Wallpapers"}\n' "$pictures" > "$settings.new"
+fi
+mv "$settings.new" "$settings"
 
 ~/.config/hypr/scripts/settings_watcher.sh --compile
 # --- generated configs end ---

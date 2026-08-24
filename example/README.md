@@ -308,6 +308,16 @@ on:
   seeds the file before compiling now, with `~/Pictures/Wallpapers` and the directory
   made. It ships no images: what goes in it is still the receiver's, for the licensing
   reason in the table below.
+
+  The seed is written **every** time the hook runs, not only when the value is empty, and
+  the first version of it got that wrong. `settings.json` is at
+  `~/.config/hypr/settings.json`, which is *inside the bundle* — so a path written on one
+  machine is still sitting in the file on the next one, and "is it already set" cannot
+  tell this machine's home from somebody else's. Installing onto a second HOME proved it:
+  the real one inherited a throwaway lab's path. A hook runs once per bundle per machine
+  (invariant 13), which is exactly when a machine-specific value should be written;
+  afterwards the settings UI owns the file, and `jq` sets the one key so its others
+  survive.
 - **`xdg-user-dir PICTURES` succeeds with `$HOME`** when the machine has no
   `user-dirs.dirs`, so `xdg-user-dir PICTURES || echo "$HOME/Pictures"` never reached its
   fallback and `XDG_PICTURES_DIR` became the home directory itself. A command that fails

@@ -375,6 +375,11 @@ impl TestEnv {
             // and backups, and `~/.cache` is runtime state in every other part of this
             // codebase too.
             self.home.join(".cache"),
+            // Same reason, the other directory that hook makes: it seeds the rice's
+            // wallpaper directory so the generated env.conf names one that exists. A
+            // directory with the user's pictures in it is the last thing a switch away
+            // should take with it.
+            self.home.join("Pictures"),
         ];
         walk(&self.home)
             .into_iter()
