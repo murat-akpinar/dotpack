@@ -1,4 +1,4 @@
-## [unreleased]
+## [0.1.0] - 2026-08-24
 
 ### 🚀 Features
 
@@ -44,3 +44,7 @@
 ### 🧪 Testing
 
 - *(bundle)* The link list now has a file in it ([064e68f](https://github.com/murat-akpinar/dotpack/commit/064e68f43b7b69696a3804ede979b5d1f6d30283)) — `config/starship.toml` sits directly in `config/`, so the depth rule links it as a file — the case the rule exists to get right, and the example bundle is the only fixture that had no loose file to prove it with until now. The assertion says so rather than `all(|l| l.dir)`.
+
+### ⚙️ Miscellaneous Tasks
+
+- *(cargo)* The metadata a publish requires, and the 6 MB it does not ([c66d976](https://github.com/murat-akpinar/dotpack/commit/c66d976c43dd6afb02d39d3949c87f7274dd73aa)) — description and license are not optional for crates.io; repository, readme, keywords and categories are what make the crate findable once it is there.
