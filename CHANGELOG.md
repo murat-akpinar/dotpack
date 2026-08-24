@@ -17,6 +17,7 @@
 ### 🐛 Bug Fixes
 
 - *(collect)* A ticked directory is evidence for its own package ([18c368e](https://github.com/murat-akpinar/dotpack/commit/18c368ebca718ef8dfb443833adde29c2d23df60)) — `collect kitty` wrote a bundle with an empty `[packages]`: every suggestion came from a command a config *launches*, and nothing in `kitty.conf` launches kitty. The bundle shipped a terminal's config and never installed the terminal.
+- *(m7)* What a second machine found ([b933888](https://github.com/murat-akpinar/dotpack/commit/b933888315d2d2b93452340d62be4e29f2332709)) — A second Arch box — Hyprland and sway, no AUR helper, no files database — under a throwaway HOME. Five findings, none of them visible on the machine the tool was written on.
 
 ### 📚 Documentation
 
