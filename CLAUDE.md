@@ -147,6 +147,10 @@ Deliberately absent. Do not add these without asking:
 Before adding any crate, answer: how many lines would I write without it? Under ~50
 means write the lines.
 
+**A new shelled-out binary is a `depends` line in `PKGBUILD`.** The crates are vendored by
+cargo and need nothing there; `git` and `fc-cache` are called by name and do. Optional ones
+(`paru`, `wl-copy`) are `optdepends` — the tool works without them and says so.
+
 ## Style
 
 - Follow the ladder: does it need to exist → stdlib → already-installed dep → one line → minimum code.

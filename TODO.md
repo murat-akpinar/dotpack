@@ -510,6 +510,7 @@ one outcome is a keymap that has to be remembered twice.
 - [x] Publish an example bundle repo — the reference people will look at
 - [x] Publish the spec as a document separate from the tool — `spec/`
 - [x] Close Phase 0's last question — `assets` are copied, and by something
+- [x] A `PKGBUILD`, because on Arch that is what installing means
 
 ### The second machine
 
@@ -649,6 +650,31 @@ machine** — the one where the same bundle gets switched to twice:
   `copy: lake.png` takes the bundle's other wallpapers as coming too. Nothing in the test
   suite could have found this: it needs the same bundle activated twice, which is what a
   lab HOME on a second box is for.
+
+### Installing the installer
+
+`PKGBUILD` at the repo root, `dotpack-git`, built and packaged with `makepkg` before it
+was committed. A tool whose whole argument is that software on Arch arrives as a package
+had no way of arriving as one, and its README — which opens on "install them with one
+command" — did not say how to install *it*.
+
+- **`cargo install` was the wrong answer for this project specifically.** It drops a
+  binary in `~/.cargo/bin` that no package manager knows about, which is the state this
+  tool exists to argue against. `pacman -R dotpack-git` is the point.
+- **`depends` is the shelled-out binaries, not the crates.** `git` (for `use github:…`)
+  and `fontconfig` (`fc-cache`); `pacman`, `systemd` and coreutils are in `base` and are
+  not listed. `paru`/`yay` and `wl-clipboard`/`xclip` are `optdepends` — the tool runs
+  without them and says which one it could not find. That mapping is now a rule in
+  CLAUDE.md, because it is invisible from the Rust side.
+- **`check()` runs the suite.** It works in a clean chroot only because the switch test
+  stubs `pacman`/`sudo`/`systemctl` on PATH, uses a temporary `HOME`, and passes
+  `user.email` inline to every `git commit` it makes. None of that was written for
+  packaging; it is what invariant 14 and the stub list already bought.
+
+Still not done, and both are the author's call rather than the tool's: **`main` is 22
+commits ahead of `origin`**, and a `-git` package builds what is on GitHub — so until it
+is pushed, `makepkg -si` installs a dotpack without any of M7 in it. There is no tag
+either; a versioned `dotpack` package wants one.
 
 ---
 

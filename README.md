@@ -13,10 +13,24 @@ dotpack post                   # the r/unixporn list, generated from the manifes
 
 Arch Linux · hyprland / sway / i3 · Rust + ratatui
 
-> **Status: the CLI works, and it shares.** `collect`, `add`, `use`, `use -`, `ls`,
-> `sync`, `rm` and `post` are implemented and tested (M0–M4 in [TODO.md](TODO.md)), so
-> `dotpack use github:user/repo` clones, plans, installs and runs the bundle's hooks.
-> Still to come: `external` mode (M5) and the TUI (M6).
+> **Status: all of it works.** Every verb above, plus `add`, `ls`, `sync` and `rm`;
+> `external` mode for repos chezmoi or stow already manages; and a TUI over the same
+> functions, which `dotpack` with no arguments opens. M0–M7 in [TODO.md](TODO.md), tested
+> on a second Arch machine with no AUR helper. What has never been tested anywhere is the
+> compositor reload — `hyprctl reload` needs a running session, and the lab runs over ssh.
+
+## Install
+
+```bash
+git clone https://github.com/murat-akpinar/dotpack
+cd dotpack && makepkg -si
+```
+
+A `PKGBUILD` and not `cargo install`, for the reason the tool exists: on Arch, software
+arrives as a package. `pacman -R dotpack-git` then removes it, which a binary dropped in
+`~/.cargo/bin` does not. Being a `-git` package it builds the latest commit on GitHub
+rather than your checkout, and it runs the test suite on the way — the tests stub `pacman`
+and use a temporary `HOME`, so building never touches the machine building it.
 
 ## The problem
 
