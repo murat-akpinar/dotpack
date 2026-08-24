@@ -78,6 +78,7 @@ Nothing changes without confirmation.
 │   + ~/.config/ags         new link                             │
 │   − ~/.config/cava        link will be removed                 │
 │   ⚠ ~/.config/fish        real file → will be backed up        │
+│   ↓ ~/Pictures/wallpapers/lake.png    copied, not linked       │
 │                                                                │
 │  SERVICES    + caelestia.service   − swayosd.service           │
 │                                                                │
@@ -90,6 +91,12 @@ Nothing changes without confirmation.
 
 `h` → the hook script's full contents in a scrollable window. No running a script from
 someone else's repo unseen.
+
+The `↓` row is `assets`, and it is the one line here that is not a link: those files are
+**copied**, nothing removes them on the way out, and a destination that already holds a
+file of the user's is left alone and reported as a warning instead. Only destinations that
+are not there yet appear — after the first activation the row is empty, which is why a
+bundle with forty wallpapers does not put forty lines in front of anybody twice.
 
 ---
 

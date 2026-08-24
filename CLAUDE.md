@@ -109,7 +109,7 @@ time to the receiver. This is **not** WM-specific: `kitty.conf`'s
 `include ~/.config/kitty/catppuccin.conf` is the case that motivated it, and shipping one
 without the other installs a kitty that errors on every start.
 
-**Two extractors, and the second is the one that finds most of them.** Keywords
+**Three extractors, and the second is the one that finds most of them.** Keywords
 (`source` / `include` / `@import`) catch `include catppuccin.conf`. But the example
 bundle's other eleven dangling references are none of them — they are **paths sitting in
 ordinary argument position**:

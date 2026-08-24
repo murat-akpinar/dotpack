@@ -287,7 +287,7 @@ the colours are gone and kitty prints an error on every start. Following `source
 general: **every selected text file is scanned for references, and every reference is
 resolved.**
 
-**Two extractors, because a keyword table alone finds almost nothing.** Run over
+**Three extractors, because a keyword table alone finds almost nothing.** Run over
 `example/`, the keyword list catches exactly one dangling reference — kitty's. The other
 eleven are paths in ordinary argument position, with no directive anywhere on the line:
 

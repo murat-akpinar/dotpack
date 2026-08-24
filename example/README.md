@@ -31,7 +31,7 @@ ships.
 
 | | install.sh | dotfiles.toml |
 |---|---|---|
-| Lines to read | 1898 | 90 + a 49-line hook |
+| Lines to read | 1898 | 95 + an 89-line hook |
 | Package list | array at line 157 | `[packages]` |
 | What each package is for | — | `[components]` |
 | Root services | enabled with sudo | not permitted; a hook you read first |
@@ -46,16 +46,24 @@ example/
 ├── hooks/
 │   └── post-install.sh   # regenerate the generated configs, root services, login shell
 └── config/
-    ├── hypr/         # hyprland.conf, config/*.conf, templates/, scripts/ — and the
-    │                 #   quickshell UI: bar, launcher, lock screen, guide (74 files)
+    ├── hypr/         # hyprland.conf, config/*.conf, templates/, scripts/, settings.json
+    │                 #   — and the quickshell UI: bar, launcher, lock, guide (104 files)
     ├── matugen/      # config.toml + 11 templates — the colour pipeline
+    ├── nvim/         # the editor named in [components]
     ├── kitty/        # kitty.conf and the three files it and matugen use
+    ├── fish/         # the shell the hook chshes into
     ├── cava/         # config_base, which matugen turns into config
-    └── swayosd/      # style.css, referenced by autostart.conf
+    ├── fastfetch/    # config.jsonc and the cat it draws
+    ├── swayosd/      # style.css, referenced by autostart.conf
+    └── starship.toml # the prompt — a loose file, so a file link, not a directory one
 ```
 
-126 files, 6 MB, **43 of them executable**. That is the invariant behind `fs::copy` in
+147 files, 6.2 MB, **43 of them executable**. That is the invariant behind `fs::copy` in
 `apply/write.rs`; losing one exec bit breaks the rice silently.
+
+Four of those directories and the loose file arrived late, and finding 17 is about why:
+the manifest had named them as `components` from the start and `collect` had shipped none
+of them.
 
 ## What was left out, and why
 
@@ -267,24 +275,29 @@ are carried down a file now.
 in shipped, and it is upstream's bug, not this bundle's. Fixed here: the watcher's weather
 refresh has never worked in this rice and now does.
 
-**14: the check's remaining thirteen, and why they stay.** With the tree complete
-`dotpack use` reports thirteen dangling references, down from thirty-eight before the
-deduplication and the fixes above. Every one is true, and none is a missing file:
+**14: the check's remaining eighteen, and why they stay.** With the tree complete
+`dotpack use` reports eighteen, down from thirty-eight before the deduplication and the
+fixes above. Every one is true, and none is a file anybody forgot:
 
 | What | Count | |
 |---|---|---|
 | `~/.face`, `~/.face.icon` | 2 | the lock screen's avatar. A bundle must not ship your face |
-| `~/.config/hypr/settings.json` | 1 | was `ignore`d on purpose, and that was the mistake findings 15 and 16 are about. It ships now |
 | `quickshell/calendar/.env` | 1 | the API key, withheld on purpose |
-| matugen's outputs under `nvim/`, `rofi/`, `qt5ct/`, `qt6ct/` | 6 | files the colour pipeline **writes**, into configs this bundle does not manage |
+| matugen's outputs under `rofi/`, `qt5ct/`, `qt6ct/` | 5 | files the colour pipeline **writes**, into configs this bundle does not manage. It was six until `nvim/` shipped and one of them resolved (finding 17) |
 | `env.conf.tmp` | 1 | a temp file `--compile` creates and deletes |
 | `~/.config/easyeffects/output` | 1 | your own presets |
 | `~/.zshrc` | 1 | dead upstream, finding 5 |
+| `~/.fish_profile`, `~/.local/bin/secheaders` | 2 | dead in the author's own fish config, and arrived with it in finding 17 |
+| `env.conf` naming `/home/user/` | 4 | `LiteralHome`, finding 18 — a generated file's committed placeholder, correct after the hook runs and correct to report for anyone who passes `--no-hooks` |
+| `fish_variables` naming a home | 1 | `LiteralHome` — fish writes it back into the bundle itself |
 
-Six of the thirteen are **write** targets, and the check does not know the difference
+`~/.config/hypr/settings.json` used to head this table. It ships now, and findings 15 and
+16 are what that cost.
+
+Five of the eighteen are **write** targets, and the check does not know the difference
 between a file a config reads and one it creates. Telling them apart means reading the
 grammar of the line — `>`, `output_path =`, an array of destinations — which is a parser
-rather than a keyword list, so it is marked in `src/scan/refs.rs` and not built. Thirteen
+rather than a keyword list, so it is marked in `src/scan/refs.rs` and not built. Eighteen
 lines a receiver can read to the end is the point; thirty-eight was not.
 
 ---
@@ -379,7 +392,7 @@ points at, and nothing in `hyprland.conf` points at `~/.config/fish`.
 `config/fish`, `config/fastfetch`, `config/nvim` and `config/starship.toml` ship now — 6 MB
 in total, and `starship.toml` is the first file that sits directly in `config/`, which the
 depth rule links as a file rather than promoting `~/.config` into one link. Shipping nvim
-also closed one of finding 14's thirteen: `matugen_reload.sh` writes
+also closed one of finding 14's: `matugen_reload.sh` writes
 `~/.config/nvim/matugen_colors.lua`, and that file is in the bundle now.
 
 Two things came out of copying them in by hand rather than through `collect`:
