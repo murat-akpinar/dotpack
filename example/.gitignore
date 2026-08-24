@@ -10,3 +10,8 @@
 # author's displays — and that is an author's action, like resizing the screenshots.
 config/hypr/scripts/*.log
 config/hypr/scripts/quickshell/calendar/.env
+
+# fish rewrites this one itself, into the bundle, because ~/.config/fish *is* the bundle
+# in symlink mode — `ignore` is collect-time only and cannot stop a running program.
+# The copy it writes carries `fish_user_paths:/home/<whoever>/...`.
+config/fish/fish_variables

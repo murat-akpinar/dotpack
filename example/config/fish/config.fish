@@ -294,8 +294,9 @@ alias knewtoken='kubeadm token create --print-join-command'
 
 export EDITOR=nvim
 export VISUAL=nvim
-export KUBECONFIG=/home/shyuuhei/.kube/foxhound.yaml
-export HISTFILE=/home/shyuuhei/.local/share/fish/fish_history
+# KUBECONFIG is not here: it named a work cluster's file, and a bundle other people
+# install is not the place for one. Kept out for the same reason as the weather API key.
+export HISTFILE=$HOME/.local/share/fish/fish_history
 export HISTTIMEFORMAT="%Y/%m/%d %H:%M:%S "
 export HISTSIZE=1000
 export HISTFILESIZE=2000

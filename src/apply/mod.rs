@@ -225,16 +225,23 @@ fn machine_warnings(bundle: &Bundle) -> Result<Vec<String>> {
         ) {
             continue;
         }
-        warnings.push(format!(
-            "{}:{} points at {}, which the bundle does not ship",
-            reference
-                .from
-                .strip_prefix(&bundle.root)
-                .unwrap_or(&reference.from)
-                .display(),
-            reference.line,
-            reference.raw
-        ));
+        let file = reference
+            .from
+            .strip_prefix(&bundle.root)
+            .unwrap_or(&reference.from)
+            .display();
+        warnings.push(match reference.verdict {
+            // Not a missing file — a home directory belonging to whoever wrote the line.
+            // "the bundle does not ship it" would be true and useless: nobody can ship it.
+            crate::scan::refs::Verdict::LiteralHome => format!(
+                "{file}:{} names {} literally — that is one machine's home directory, not yours",
+                reference.line, reference.raw
+            ),
+            _ => format!(
+                "{file}:{} points at {}, which the bundle does not ship",
+                reference.line, reference.raw
+            ),
+        });
     }
     Ok(warnings)
 }

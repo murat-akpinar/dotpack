@@ -392,6 +392,42 @@ Two things came out of copying them in by hand rather than through `collect`:
   **nothing in the tool caught it**: the reference check looks for `~/`, `$HOME/` and
   `$(dirname …)`, and a literal `/home/<author>/…` is none of those.
 
+**18: the check written after finding 17 found two more, in the file finding 17 had just
+shipped.** A literal `/home/<author>/…` is wrong by its shape rather than by anything
+missing, so nothing looked for it. `scan/refs.rs` looks now — a third extractor marker and
+a `LiteralHome` verdict — and the first run over this bundle's own fish config returned:
+
+```
+config.fish:297      → /home/shyuuhei/.kube/foxhound.yaml              (LiteralHome)
+config.fish:298      → /home/shyuuhei/.local/share/fish/fish_history   (LiteralHome)
+fastfetch/config.jsonc:4 → /home/shyuuhei/.config/fastfetch/cat.txt    (LiteralHome)
+```
+
+The fastfetch one is the clearest argument for the check: `cat.txt` **is** in the bundle,
+sitting next to the config that points at it, and every receiver would have got a fetch
+with no logo. `~/.config/fastfetch/cat.txt` now, which fastfetch expands.
+
+`HISTFILE` is `$HOME/…` now, which is what it always meant. **`KUBECONFIG` is gone**, and
+that one is not a path bug: it named a work cluster's file, and a bundle other people
+install is not the place to carry one. It is out for the same reason as the weather API
+key, and the same way — by hand, before pushing, because no `ignore` pattern removes a
+*line* from a file that otherwise belongs in the bundle.
+
+Worth being plain about the sequence: the config was shipped, then the tool was taught the
+check, and the check immediately found what the shipping had missed. That is the argument
+for the check existing, written down at the moment it was earned.
+
+Two more the check reports, both left alone on purpose:
+
+- **`config/hypr/config/env.conf` names `/home/user/` on four lines.** It is a generated
+  file and the hook regenerates it before anything reads it (finding 10); what is
+  committed is upstream's placeholder. The warning is correct — a receiver who passes
+  `--no-hooks` really does get those four lines — so it stays.
+- **`config/fish/fish_variables` comes back after every install.** fish writes it itself,
+  into the bundle, because `~/.config/fish` *is* the bundle in symlink mode. `ignore` is
+  collect-time only and cannot stop a running program (invariant 12); `.gitignore` keeps
+  it out of the repo, which is the only half anyone can control.
+
 ## The hook
 
 `hooks/post-install.sh` is the whole of what a manifest is not allowed to do: run the

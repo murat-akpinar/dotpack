@@ -123,6 +123,14 @@ SCRIPTS_DIR="$HOME/.config/hypr/scripts/quickshell"
 So: any token beginning `~/`, `$HOME/`, or `$(dirname …)/` in a shipped text file is a
 reference. `docs/design.md` §5.1.
 
+**A third extractor, and it is not looking for a missing file.** A literal
+`/home/<someone>/…` is wrong by its *shape*: it names one machine's home in a bundle other
+people install. It reads the line **as written**, before `$HOME` and `$(dirname …)` are
+substituted — substitution produces exactly that shape out of correct lines, and a check
+that reports every well-written line is a check nobody keeps. Verdict `LiteralHome`. The
+first run over `example/` found a hardcoded `KUBECONFIG` and a fastfetch logo path that
+had been shipped minutes earlier.
+
 ## Dependencies
 
 Current set — `ratatui`, `serde`, `toml`, `clap`, `walkdir`, `anyhow`. **Six, not seven:**

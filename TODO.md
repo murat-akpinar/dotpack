@@ -511,6 +511,7 @@ one outcome is a keymap that has to be remembered twice.
 - [x] Publish the spec as a document separate from the tool — `spec/`
 - [x] Close Phase 0's last question — `assets` are copied, and by something
 - [x] A `PKGBUILD`, because on Arch that is what installing means
+- [x] Install the example on a machine that is not this one, and **look at the screen**
 
 ### The second machine
 
@@ -675,6 +676,53 @@ Still not done, and both are the author's call rather than the tool's: **`main` 
 commits ahead of `origin`**, and a `-git` package builds what is on GitHub — so until it
 is pushed, `makepkg -si` installs a dotpack without any of M7 in it. There is no tag
 either; a versioned `dotpack` package wants one.
+
+### Looking at the screen
+
+The acceptance test had been judged on file counts and link lists. Running it on the second
+machine's *own* HOME and then logging in found five faults in an hour, and **not one was
+findable by the test suite** — every one needed a real HOME, a real session, or a second
+activation.
+
+- **`WALLPAPER_DIR=` came out empty.** `--compile` takes it from `settings.json`, which
+  was not shipped; the empty string went straight into `env.conf`.
+- **`xdg-user-dir PICTURES` returns `$HOME` and exits 0** on a machine with no
+  `user-dirs.dirs`, so the rice's `|| echo "$HOME/Pictures"` never fired. A command that
+  fails by returning the wrong answer defeats `||`.
+- **A lab HOME's path was inherited by the real one.** The first seed only wrote when the
+  value was empty, and `settings.json` lives *inside the bundle*. The guard that compared
+  the path against `$HOME` was worse than none: a lab HOME nested under the real one
+  passed it. Hooks run once per bundle per machine, so the condition was never needed.
+- **`kb_layout = tr` shipped and `us` arrived.** Same cause: `.language` comes from
+  `settings.json`, and the compiler's default is `us`. Asked of `localectl` now.
+- **72 keybinds and 13 startup entries never travelled at all.** The bundle shipped the
+  five *generated* configs and not the file they are generated from. Shipping a generated
+  file without its input is worse than shipping neither — the hook regenerates on the
+  receiver and the loss is silent: nothing errors, the bar comes up, and the rice is not
+  the one in the screenshots.
+
+Then, from looking rather than measuring: **fastfetch printed its default output, the
+shell was a bare fish the hook had just chshed into, and the editor was stock.** The
+manifest declared all three as `components` and installed their packages; `collect` had
+selected the WM's directory and what its config points at, and nothing in `hyprland.conf`
+points at `~/.config/fish`. `config/fish`, `config/fastfetch`, `config/nvim` and
+`config/starship.toml` ship now — and `starship.toml` is the first loose file in `config/`
+any bundle has had, so the depth rule's file case finally has a fixture.
+
+**The tool learned one thing from all of it**: a literal `/home/<someone>/…` in a shipped
+file is wrong by its shape, and nothing was looking. `scan/refs.rs` has a third extractor
+and a `LiteralHome` verdict; it reads the line **as written**, because extractors 1 and 2
+run after `$HOME` and `$(dirname …)` have been expanded into exactly that shape — over the
+expanded line it reported every correct line in the bundle. Over the written line it found
+six, all real, including a hardcoded `KUBECONFIG` naming a work cluster and a fastfetch
+logo path that had been committed twenty minutes earlier.
+
+**Two things this machine still cannot test**, and they are the same two as before: the
+compositor reload needs a running session (it runs over ssh), and whether the rice *looks*
+right needs eyes. The VM's own EGL could not create a context at all until
+`LIBGL_ALWAYS_SOFTWARE=1` — worth writing down that a black screen took three causes to
+clear, and none of them was dotpack: a dead greeter holding DRM master, the wrong VT in
+the console window, and VMware SVGA's GL.
 
 ---
 

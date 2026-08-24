@@ -51,6 +51,11 @@ pub enum Verdict {
     Dead,
     /// Contains a `$` that is not `$HOME` — guessing is worse than saying so.
     Unresolved,
+    /// A home directory written out in full: `/home/someone/.cargo/bin`. Everything else
+    /// here is wrong because something is *missing*; this one is wrong by its **shape**,
+    /// and it is wrong on every machine but the one it was written on — including when
+    /// the someone is the author, which is exactly when it gets written.
+    LiteralHome,
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -71,9 +76,16 @@ impl Reference {
     /// `output_path = …`, an array of destinations), which is a parser rather than a
     /// keyword. Until then they are reported and the bundle's README says why.
     pub fn dangling(&self) -> bool {
+        self.verdict.dangling_verdict()
+    }
+}
+
+impl Verdict {
+    /// Worth putting in front of somebody, either as a missing file or as a wrong shape.
+    pub fn dangling_verdict(&self) -> bool {
         matches!(
-            self.verdict,
-            Verdict::Addable | Verdict::Dead | Verdict::Unresolved
+            self,
+            Verdict::Addable | Verdict::Dead | Verdict::Unresolved | Verdict::LiteralHome
         )
     }
 }
@@ -107,10 +119,19 @@ pub fn scan_at(files: &[(PathBuf, PathBuf)]) -> Vec<Reference> {
 
         // Path-valued variables, in the order the file assigns them.
         let mut vars: Vec<(String, String)> = Vec::new();
-        for (index, line) in text.lines().enumerate() {
-            let line = &expand_vars(line, &vars);
+        for (index, written) in text.lines().enumerate() {
+            let line = &expand_vars(written, &vars);
             if let Some(assigned) = assignment(line, dir) {
                 vars.push(assigned);
+            }
+            for raw in literal_homes(written) {
+                found.push(Reference {
+                    verdict: Verdict::LiteralHome,
+                    from: file.clone(),
+                    line: index + 1,
+                    path: Some(PathBuf::from(&raw)),
+                    raw,
+                });
             }
             for raw in references_in(line, dir) {
                 // A bare variable is not a file reference — `$CACHE_FILE` is unknowable
@@ -170,6 +191,29 @@ fn references_in(line: &str, dir: &Path) -> Vec<String> {
                 if !value.is_empty() && !found.contains(&value) {
                     found.push(value);
                 }
+            }
+        }
+    }
+    found
+}
+
+/// A home directory spelled out in full, read from the line **as written** — before
+/// `$HOME` and `$(dirname …)` are substituted, because substitution produces exactly this
+/// shape from paths that are perfectly correct. `$HOME/x` in the file becomes
+/// `/home/whoever/x` in the scanner, and calling that a finding would report every
+/// well-written line on the machine doing the scanning.
+fn literal_homes(written: &str) -> Vec<String> {
+    let trimmed = written.trim();
+    if trimmed.starts_with('#') || trimmed.starts_with("//") {
+        return Vec::new();
+    }
+    let mut found = Vec::new();
+    for token in written.split_whitespace() {
+        if let Some(at) = token.find("/home/") {
+            let value = clean(&token[at..]);
+            // `/home/` on its own is the parent of every home, not one of them.
+            if value.len() > "/home/".len() && !found.contains(&value) {
+                found.push(value);
             }
         }
     }
@@ -490,6 +534,34 @@ mod tests {
     }
 
     /// Over the example bundle, which is a real rice: the numbers the design claims.
+    /// The one fault that is about the *shape* of a path rather than a missing file.
+    /// It got into the bundle three times before anything looked for it: twice as a
+    /// generated config naming the author's home, once as fish's own variables file.
+    #[test]
+    fn a_home_directory_written_out_is_a_finding() {
+        assert_eq!(
+            literal_homes("export KUBECONFIG=/home/someone/.kube/prod.yaml"),
+            ["/home/someone/.kube/prod.yaml"]
+        );
+        assert_eq!(
+            literal_homes("SETUVAR fish_user_paths:/home/someone/.cargo/bin"),
+            ["/home/someone/.cargo/bin"]
+        );
+        assert!(
+            Verdict::LiteralHome.dangling_verdict(),
+            "and it is reported"
+        );
+
+        // The three that must NOT be caught, and the first two are the whole reason this
+        // extractor reads the line as written: the scanner substitutes `$HOME` and
+        // `$(dirname ...)` into exactly this shape, out of lines that are correct.
+        assert!(literal_homes("source $HOME/.config/hypr/x.conf").is_empty());
+        assert!(literal_homes("source ~/.config/hypr/x.conf").is_empty());
+        assert!(literal_homes("# export OLD=/home/someone/x").is_empty());
+        // `/home` itself is the parent of every home, not one of them.
+        assert!(literal_homes("du -sh /home/").is_empty());
+    }
+
     #[test]
     fn example_bundle_reference_count() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("example/config");

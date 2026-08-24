@@ -304,6 +304,19 @@ So:
 |---|---|---|
 | 1 | the **keyword** table below, taking the rest of the line as the reference | `include catppuccin.conf` — bare relative paths, which have no other marker |
 | 2 | any **token starting `~/`, `$HOME/` or `$(dirname …)/`**, anywhere in any shipped text file | everything above |
+| 3 | any **token containing `/home/<name>`**, read from the line *as written* | one machine's home directory, spelled out — `export KUBECONFIG=/home/author/.kube/prod.yaml` |
+
+Extractor 3 is the only one that is not about a missing file. `~/` and `$HOME/` mean *the
+receiver's* home and are the correct spelling; `/home/someone/` is wrong on every machine
+but the one it was typed on, and it is typed on the author's. It gets its own verdict
+(`LiteralHome`) because "the bundle does not ship it" is true and useless — nobody can
+ship somebody's home directory.
+
+**It must read the line before substitution**, which is the one thing about it worth
+remembering. Extractors 1 and 2 run on a line whose `$HOME` and `$(dirname …)` have
+already been expanded into absolute paths — and those absolute paths start `/home/`. Run
+over the expanded line, extractor 3 reports every correct line in the bundle; run over the
+written line, it reported six things in `example/` and every one was real.
 
 | Keyword | Seen in |
 |---|---|
