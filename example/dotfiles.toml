@@ -22,10 +22,11 @@ services = []
 # --- services end ---
 
 # --- ignore start ---
-# Collect-time only. Safe here because settings.json's only consumer falls back when it
-# is absent. monitors.conf is deliberately NOT listed: hyprland.conf sources it.
+# Collect-time only. settings.json is deliberately NOT listed: it is what
+# `settings_watcher.sh --compile` reads, so a bundle without it recompiles into a rice
+# with none of the author's keybinds. monitors.conf is not listed either — hyprland.conf
+# sources it.
 ignore = [
-  "config/hypr/settings.json",
   "config/hypr/scripts/*.log",
   # The weather API key. The only file here kept out for secrecy rather than for weight:
   # the calendar reads it, the bundle must not carry it.

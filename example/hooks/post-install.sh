@@ -33,9 +33,23 @@ if [ -z "$pictures" ] || [ "$pictures" = "$HOME" ]; then
     pictures="$HOME/Pictures"
 fi
 mkdir -p "$pictures/Wallpapers" "$(dirname "$settings")"
+
+# The keyboard layout is the same story with a sharper edge: the compiler reads it from
+# settings.json's `.language` and falls back to "us", so the step that exists to fit the
+# rice to this machine is the step that replaces a shipped `kb_layout = tr` with `us`.
+# Asked of the machine, exactly like the pictures directory — not taken from the author,
+# and not left to a default that is right in one country.
+layout=$(localectl status 2>/dev/null | sed -n 's/^ *X11 Layout: *//p' | head -1)
+if [ -z "$layout" ] && [ -r /etc/vconsole.conf ]; then
+    layout=$(. /etc/vconsole.conf 2>/dev/null; printf '%s' "${XKBLAYOUT:-}")
+fi
+
 # Through jq, so the settings UI's other keys survive; a missing or unparseable file
-# falls back to writing the one key.
-if ! jq --arg d "$pictures/Wallpapers" '.wallpaperDir = $d' "$settings" > "$settings.new" 2>/dev/null; then
+# falls back to writing the keys we know. An empty $layout is left out rather than
+# written as "", which the compiler would take literally.
+if ! jq --arg d "$pictures/Wallpapers" --arg l "$layout" \
+     '.wallpaperDir = $d | if $l == "" then . else .language = $l end' \
+     "$settings" > "$settings.new" 2>/dev/null; then
     printf '{"wallpaperDir":"%s/Wallpapers"}\n' "$pictures" > "$settings.new"
 fi
 mv "$settings.new" "$settings"

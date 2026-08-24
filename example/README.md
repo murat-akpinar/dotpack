@@ -274,7 +274,7 @@ deduplication and the fixes above. Every one is true, and none is a missing file
 | What | Count | |
 |---|---|---|
 | `~/.face`, `~/.face.icon` | 2 | the lock screen's avatar. A bundle must not ship your face |
-| `~/.config/hypr/settings.json` | 1 | `ignore`d on purpose. "Every consumer falls back" was not true of the *compiler* — see finding 15 |
+| `~/.config/hypr/settings.json` | 1 | was `ignore`d on purpose, and that was the mistake findings 15 and 16 are about. It ships now |
 | `quickshell/calendar/.env` | 1 | the API key, withheld on purpose |
 | matugen's outputs under `nvim/`, `rofi/`, `qt5ct/`, `qt6ct/` | 6 | files the colour pipeline **writes**, into configs this bundle does not manage |
 | `env.conf.tmp` | 1 | a temp file `--compile` creates and deletes |
@@ -328,6 +328,45 @@ Neither is dotpack's, and that is the point of the acceptance test: the tool did
 correctly — 72 of 76 packages already satisfied, five links, the hook approved and run
 once — and what it surfaced was the bundle shipping a config compiled from an input it
 does not ship.
+
+**16: the bundle shipped the compiler's output and not its input, and a real install on a
+second machine is what showed it.** Installing onto that machine's own HOME and looking
+at the screen, three things were missing at once: the keyboard was `us` on a `tr` machine,
+none of the custom keybinds worked, and the startup programs did not start. One cause.
+
+`settings_watcher.sh --compile` builds five files as **template + entries from
+`settings.json`**:
+
+| generated | what it takes from settings.json |
+|---|---|
+| `keybindings.conf` | `.keybinds[]` — 72 of them |
+| `autostart.conf` | `.startup[]` — 13 |
+| `settings.conf` | `.language`, `.kbOptions` |
+| `env.conf` | the paths of finding 15 |
+| `monitors.conf` | `.monitors[]` |
+
+`settings.json` was in `ignore` and in `.gitignore`, on the reasoning recorded in finding
+14's table: "every consumer falls back". Every consumer does — into a rice with none of
+the author's keybinds. **Shipping a generated file without the thing that generates it is
+worse than shipping neither**, because the hook then regenerates it on the receiver and
+the loss is silent: nothing errors, the bar comes up, and the rice is simply not the one
+in the screenshots.
+
+So it ships now, with the two keys that are one machine's rather than one author's taken
+out:
+
+- **`monitors`** — the author's eDP-1 and HDMI-A-1. Without it the template's generic
+  `monitor = , preferred, auto, 1` is what a receiver gets, which is the branch that was
+  always meant for them. **This key must never be committed**, and that is an author's
+  action like resizing the screenshots in finding 9.
+- **`wallpaperDir`** and **`language`** — both machine-derived, both seeded by the hook:
+  the pictures directory from `xdg-user-dir`, the keyboard layout from `localectl`. A
+  German receiver gets `de`, not the author's `tr`, and not the compiler's `us` default.
+
+What is left is 72 keybinds, 13 startup entries and four UI preferences — 12 KB of the
+author's actual rice that had never left the machine. The reference check reads the file
+like any other and its count did not move: every `~/…` path inside it resolves to
+something the bundle ships.
 
 ## The hook
 

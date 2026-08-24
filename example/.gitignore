@@ -1,8 +1,12 @@
 # The same list as `ignore` in dotfiles.toml, for the other tool that walks this tree.
 # `ignore` keeps a path out of a bundle being collected; this keeps it out of the repo
 # after the post-install hook has run here — the hook regenerates config/ from
-# templates/ and writes settings.json, both inside the bundle, because in symlink mode
-# ~/.config/hypr *is* the bundle.
-config/hypr/settings.json
+# templates/, inside the bundle, because in symlink mode ~/.config/hypr *is* the bundle.
+#
+# settings.json is NOT here any more, and that is the point: it is the compiler's input,
+# and the five files under config/ are its output. Shipping the output without the input
+# meant the hook recompiled on the receiver and produced a rice with none of the author's
+# 72 keybinds. What must never be committed is the `monitors` key inside it — one
+# author's displays — and that is an author's action, like resizing the screenshots.
 config/hypr/scripts/*.log
 config/hypr/scripts/quickshell/calendar/.env
