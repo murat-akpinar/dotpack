@@ -381,8 +381,9 @@ negative. Two consequences, both of them narrowing:
 `config.toml` declares eleven `output_path`s; the check reports them as files the bundle
 does not ship, which is true and useless. Telling a destination from a source means
 parsing the grammar of the line — `>`, `output_path =`, an array of targets — so it is
-marked in `src/scan/refs.rs` rather than guessed at. Six of the thirteen findings on the
-example bundle are this.
+marked in `src/scan/refs.rs` rather than guessed at. Five of the eighteen findings on the
+example bundle are this — six until the bundle started shipping `config/nvim`, which made
+one of matugen's destinations resolve.
 
 The same check runs at **validation time** on somebody else's bundle (§4.2 step 2), where
 it is the cheapest possible answer to "will this rice actually work when it lands?" — it
