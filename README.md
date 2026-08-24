@@ -32,6 +32,11 @@ arrives as a package. `pacman -R dotpack-git` then removes it, which a binary dr
 rather than your checkout, and it runs the test suite on the way — the tests stub `pacman`
 and use a temporary `HOME`, so building never touches the machine building it.
 
+It is on [crates.io](https://crates.io/crates/dotpack) as well, so `cargo install dotpack`
+works — but that is the second-best route here and the paragraph above is why. Use it if
+you are not on Arch and want to read the code, which is the only case where a binary
+outside the package manager is the right answer for this particular tool.
+
 ## The problem
 
 Sharing dotfiles today means: clone the repo, read the README, install 40 packages by
