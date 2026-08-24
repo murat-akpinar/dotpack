@@ -38,6 +38,7 @@
 - Resolve the contradictions a full audit turned up ([3fb8985](https://github.com/murat-akpinar/dotpack/commit/3fb898575631ac1209dc392f814e117cd2ed15a3)) — Nine passes over the docs, fixing what each pass found and re-reading after. Forty-six items; the ones that changed a rule rather than a number:
 - Answer the four M1 decisions and split apply into a directory ([2405c37](https://github.com/murat-akpinar/dotpack/commit/2405c379ed4741e27d217bcf63b7219396bc8099)) — Phase 0's remaining M1 blockers are decided, so nothing on that list stands between here and code:
 - *(spec)* The format, in its own directory ([2bd382c](https://github.com/murat-akpinar/dotpack/commit/2bd382ca0858a50c516d524219765f11c625033b)) — `spec/` is the bundle format and is normative; `docs/` is the tool's own thinking. Three documents, every link inside the directory, no dependency on anything in docs/ — copy it into its own repo and it still reads.
+- Bring every md back in line with what the bundle and the check now are ([d378fe2](https://github.com/murat-akpinar/dotpack/commit/d378fe280a531c5f4debc14c5ffc6f82d058d9f0)) — Three extractors, not two — the headline in CLAUDE.md and design.md still said two while the paragraph under it described the third.
 
 ### 🧪 Testing
 
