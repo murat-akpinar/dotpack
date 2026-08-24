@@ -502,7 +502,7 @@ one outcome is a keymap that has to be remembered twice.
 
 - [x] Test on sway and i3 (not just hyprland)
 - [x] Test on a clean user with no helper installed
-- [ ] Publish an example bundle repo — the reference people will look at
+- [x] Publish an example bundle repo — the reference people will look at
 - [x] Publish the spec as a document separate from the tool — `spec/`
 
 ### The second machine
@@ -567,6 +567,50 @@ tool's own thinking, and nothing in it is normative.
 **No AUR helper is a normal machine, not a broken one.** It gets the repo packages, is told
 which names were skipped and why, and is never offered a bootstrap — `install.sh` installs
 yay for you, and that is one of the things this tool exists not to do.
+
+### The example, published
+
+[`murat-akpinar/dotpack-example`](https://github.com/murat-akpinar/dotpack-example) is
+`example/` at a repo root, so `dotpack use github:murat-akpinar/dotpack-example` is a
+clone away. It is pushed with `git subtree push --prefix=example example main` — one
+directory, one source of truth, and the tests keep using it as a fixture.
+
+Finishing it meant shipping the one directory that had been left out, and **the last
+missing directory found six things the first eight never could.** `example/README.md`
+carries all of them; the ones that changed the tool or the format:
+
+- **The 27 MB that kept the UI out was nine screenshots.** 23 of 27, at 1920×1080, behind
+  a popup that draws them smaller. The `ignore` line this repo had written down for it was
+  wrong twice over — `guide/**` deletes the popup itself, `guide/previews/**` leaves nine
+  broken image slots — and the fix is neither: one `magick -resize 960x540 -colors 256`
+  before committing, 1.9 MB, working guide. **`ignore` drops a file, and some files need to
+  be smaller rather than absent.** Nothing in the format does that and nothing should; it
+  is an author's action, and it is now named as one.
+- **A bundle can ship generated files, and this one shipped five.** `env.conf`,
+  `monitors.conf` and three others are compiled from `templates/` by the rice's own script,
+  so what was in the repo was this machine's monitors and `/home/shyuuhei` on four lines. A
+  hook that runs `settings_watcher.sh --compile` fixes all five, and it is the answer to
+  §7's "v1 has no templates" for every rice that brought its own: **run the rice's
+  compiler, do not write one.** For `qt5ct`/`qt6ct`, which have no compiler, the answer was
+  to drop them — a generated file naming the author's home with nothing to regenerate it is
+  not shippable.
+- **The check lied about a file that was there.** `SCRIPT_DIR="$(dirname …)"` on line 3,
+  `source "$SCRIPT_DIR/../../caching.sh"` on line 4: the `$(dirname …)` substitution only
+  ever reached inside one line. Path-valued variables carry down a file now — the same fix
+  sway's `set $term foot` needed in the dependency scan, in the other scanner.
+- **38 findings became 13**, by reporting one line per missing *path* rather than per line
+  naming it. Six of the 13 are matugen **writing** to files the bundle does not ship, which
+  the check cannot tell from reading them; that is a `ponytail:` marker in `refs.rs` and a
+  paragraph in the bundle's README, not a heuristic.
+- **The integration test was mutating its own fixture.** `example/` was used in place, so
+  the hook now regenerating configs rewrote the checked-in ones with a temp `HOME`. It
+  copies first. A hook that appends to a file would have done worse and nothing would have
+  caught it.
+
+**What is still missing is wallpapers, and it is not a format problem.** `awww` starts with
+nothing to show and matugen has nothing to take colours from. The 43 images on this machine
+are downloads of unknown provenance; redistributing them is a licensing question, and the
+`[[assets]]` field is already there for whoever can answer it.
 
 ---
 

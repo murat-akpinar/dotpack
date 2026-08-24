@@ -5,6 +5,18 @@
 #
 # Runs once, on this bundle's first activation, after the links are in place.
 
+# --- generated configs start ---
+# Five files under config/ are not hand-written — this rice generates them from
+# templates/, and what ships here is the *author's* machine: their monitors, their
+# /home/<name> in env.conf. Upstream's install.sh runs this line; nothing else does, and
+# without it the receiver inherits somebody else's display layout and home directory.
+#
+# It rewrites files inside the bundle, which is what symlink mode means: ~/.config/hypr
+# *is* the bundle. dotpack has no templating of its own (design.md §7) and does not need
+# any here — the rice brought its own.
+~/.config/hypr/scripts/settings_watcher.sh --compile
+# --- generated configs end ---
+
 # --- root services start ---
 # `services` in dotfiles.toml is user units only; these are root's. A unit that is not
 # installed is skipped rather than attempted: a package that failed to install must not

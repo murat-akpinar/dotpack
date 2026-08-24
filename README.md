@@ -98,5 +98,10 @@ The tool's own notes. Nothing here is normative.
 | [docs/tui.md](docs/tui.md) | Screens, keymap, ratatui decisions |
 | [example/](example/) | A real rice as a bundle — the 1898-line installer it replaces |
 
+`example/` is published on its own at
+[murat-akpinar/dotpack-example](https://github.com/murat-akpinar/dotpack-example), which
+is what `dotpack use github:murat-akpinar/dotpack-example` clones. Same directory, pushed
+with `git subtree push --prefix=example`.
+
 The build order lives in [TODO.md](TODO.md): eight milestones, each leaving a usable tool
 behind, and one Phase 0 list of the questions still open.

@@ -324,17 +324,19 @@ mod tests {
             .iter()
             .map(|l| l.target.display().to_string())
             .collect();
-        // Three directory links, one per top-level config dir — 34 files, not 34 links.
+        // One directory link per top-level config dir — 400-odd files, not 400 links.
         assert_eq!(
             targets,
             [
+                "/tmp/dp-home/.config/cava",
                 "/tmp/dp-home/.config/hypr",
                 "/tmp/dp-home/.config/kitty",
+                "/tmp/dp-home/.config/matugen",
                 "/tmp/dp-home/.config/swayosd"
             ]
         );
         assert!(links.iter().all(|l| l.dir));
-        assert_eq!(links[0].source, root.join("config/hypr"));
+        assert_eq!(links[1].source, root.join("config/hypr"));
     }
 
     #[test]

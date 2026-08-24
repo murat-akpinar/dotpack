@@ -7,7 +7,7 @@ name        = "imperative-hyprland"
 version     = "0.1.0"
 description = "imperative-dots, customized — quickshell UI, matugen colors, fish"
 author      = "murat-akpinar"
-homepage    = "https://github.com/murat-akpinar/dotpack"
+homepage    = "https://github.com/murat-akpinar/dotpack-example"
 license     = "GPL-3.0"
 
 wm     = "hyprland"
@@ -27,6 +27,9 @@ services = []
 ignore = [
   "config/hypr/settings.json",
   "config/hypr/scripts/*.log",
+  # The weather API key. The only file here kept out for secrecy rather than for weight:
+  # the calendar reads it, the bundle must not carry it.
+  "config/hypr/scripts/quickshell/calendar/.env",
 ]
 # --- ignore end ---
 

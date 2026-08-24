@@ -1,0 +1,8 @@
+# The same list as `ignore` in dotfiles.toml, for the other tool that walks this tree.
+# `ignore` keeps a path out of a bundle being collected; this keeps it out of the repo
+# after the post-install hook has run here — the hook regenerates config/ from
+# templates/ and writes settings.json, both inside the bundle, because in symlink mode
+# ~/.config/hypr *is* the bundle.
+config/hypr/settings.json
+config/hypr/scripts/*.log
+config/hypr/scripts/quickshell/calendar/.env
