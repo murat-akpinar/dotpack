@@ -79,3 +79,9 @@ prompt = { pkg = "starship" }
 # shipped here. Printed in the install summary; dotpack never fetches it.
 cursor = { name = "Bibata-Modern-Ice", url = "https://github.com/ful1e5/Bibata_Cursor", note = "lives in ~/.local/share/icons, no package owns it" }
 # --- components end ---
+
+# --- hooks start ---
+# Shown in full and approved before it runs, on this bundle's first activation only.
+[hooks]
+post_install = "hooks/post-install.sh"
+# --- hooks end ---

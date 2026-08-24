@@ -31,6 +31,8 @@ ships.
 ```
 example/
 ├── dotfiles.toml     # the manifest
+├── hooks/
+│   └── post-install.sh   # root services and the login shell — 20 lines, printed before it runs
 └── config/
     ├── hypr/         # hyprland.conf, config/*.conf, templates/, scripts/*.sh
     ├── kitty/        # kitty.conf + catppuccin.conf (kitty.conf includes it)
@@ -179,6 +181,31 @@ written in the format; the manifest now produces **zero** warnings.
 
 ---
 
+## The hook
+
+`hooks/post-install.sh` is the whole of what a manifest is not allowed to do: enable a
+root service, and change your login shell. It runs once, on first activation, after the
+links are placed — and dotpack prints it in full above the confirmation, which is the
+only reason a bundle may do either.
+
+It is twenty lines, and three of the decisions in it are worth naming:
+
+- **Each unit is skipped when it is not installed**, rather than attempted. On the machine
+  it was tested on `swayosd-libinput-backend` was missing — its package needs an AUR helper
+  and there was none — and the other three still got enabled. A package that failed to
+  install must not take the rest of the file with it.
+- **`chsh` compares resolved paths.** `/bin` is a symlink to `/usr/bin` on Arch, so a
+  passwd entry of `/bin/fish` and a `command -v fish` of `/usr/bin/fish` are the same
+  shell spelled two ways — and the naive comparison asks for your password to change
+  nothing. Found on the second machine, where the shell was already fish.
+- **The display manager is left alone.** Upstream's `install.sh` enables sddm; sddm is not
+  in this bundle's `[packages]`, and enabling one display manager disables the one you are
+  using.
+
+`power-profiles-daemon` is the one line here without evidence among the shipped files: what
+reads it is the quickshell UI this bundle does not ship. It is in `[packages]`, so the hook
+enables it.
+
 ## What a second machine turned up
 
 Installing this bundle somewhere that did not already have the rice — Arch, no AUR
@@ -189,7 +216,7 @@ with the tool:
 no user unit on Arch; it autostarts from a `.desktop` file. The line was hand-written —
 `collect` never fills `services` — and on the machine it was written on nothing ever tried
 to enable it. The field is `[]` now, which is the honest value for this rice: everything
-else it needs at boot needs root, and that is what the `post-install.sh` below is for.
+else it needs at boot needs root, and that is what the hook above is for.
 
 The other two findings were the tool's and are fixed there: one conflicting package
 (`pipewire-jack` against an installed `jack2`) made pacman refuse the whole transaction,
@@ -206,7 +233,6 @@ today; what is missing is bundle *content*, and it is missing independently of t
 | Missing | Why it matters | Blocked on |
 |---|---|---|
 | `config/hypr/scripts/quickshell/` | bar, launcher, lock screen, screenshot overlay — the whole UI | a call about 3.9 MB in this repo |
-| `hooks/post-install.sh` | root services (`NetworkManager`, `sddm`, `power-profiles-daemon`, `swayosd-libinput-backend`) and `chsh` to fish. A manifest may not do these; a hook the user reads first may | nothing — it can be written now |
 | `assets/wallpapers/` + an `[[assets]]` entry | `install.sh` clones a wallpaper repo; `awww` starts with nothing to show | picking which wallpapers ship |
 | `config/hypr/config/monitors.conf` | ships with this machine's two monitors — edit after installing | v1 has no templates (`design.md` §7) |
 | `scripts/weather.sh` | `settings_watcher.sh` calls it; it does not exist upstream either | upstream, not us |
