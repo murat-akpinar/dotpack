@@ -190,6 +190,28 @@ impl TestEnv {
         repo
     }
 
+    /// The M5 shape: a chezmoi repo whose *only* dotpack file is the manifest. The
+    /// config below is in chezmoi's naming and holds a reference to a file nobody
+    /// ships — none of which is ours to report, because none of it is ours to place.
+    fn external_repo(&self) -> PathBuf {
+        let repo = self.root.join("chezmoi-repo");
+        for (path, contents) in [
+            (
+                "dotfiles.toml",
+                "name = \"brozi-hyprland\"\nwm = \"hyprland\"\nmode = \"external\"\n                 managed_by = \"chezmoi\"\n\n[packages]\npacman = [\"waybar\"]\n\n                 [components]\nbar = \"waybar\"\n",
+            ),
+            (
+                "dot_config/hypr/hyprland.conf",
+                "source = ~/.config/hypr/nowhere.conf\n",
+            ),
+        ] {
+            let file = repo.join(path);
+            std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+            std::fs::write(file, contents).unwrap();
+        }
+        repo
+    }
+
     fn store(&self, name: &str) -> PathBuf {
         self.home.join(".local/share/dotpack/bundles").join(name)
     }
@@ -456,5 +478,81 @@ fn git(repo: &Path, args: &[&str]) {
         "git {}\n{}",
         args.join(" "),
         String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+/// M5: `mode = "external"`. The packages are installed and the roles shown; the files
+/// belong to chezmoi and **not one of them is touched** — which is the whole acceptance
+/// sentence, and the only way the format reaches a repo that will never move to ours.
+#[test]
+fn external_mode_installs_packages_and_places_nothing() {
+    let env = TestEnv::new("external");
+    env.write(".config/mine/notes.txt", "untouched\n");
+    env.write(".config/hypr/hyprland.conf", "the user's own config\n");
+    let before = env.snapshot();
+
+    let repo = env.external_repo();
+    let out = env.try_run(&["use", repo.to_str().unwrap(), "-y"]);
+    let said = String::from_utf8_lossy(&out.stdout).to_string();
+    assert!(
+        out.status.success(),
+        "{said}{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    assert_same(&before, &env.snapshot(), "an external bundle");
+    assert!(
+        said.contains("external mode") && said.contains("chezmoi places them"),
+        "the summary has to say who places the files: {said}"
+    );
+    assert!(
+        said.contains("Bar: waybar"),
+        "with no links to show, the roles are what the plan is: {said}"
+    );
+    assert!(
+        !said.contains("does not ship"),
+        "and chezmoi's tree is not ours to judge for dangling references: {said}"
+    );
+
+    // It is still the active bundle: switching away has to work like any other.
+    let b = env.bundle_b();
+    env.run(&["use", b.to_str().unwrap(), "-y"]);
+    env.run(&["use", "-", "-y"]);
+    assert_same(&before, &env.snapshot(), "and switching back to it");
+}
+
+/// `collect --external` on a repo that already exists: one file lands in it, and nothing
+/// else — not the configs it already has, not a README on top of the author's own.
+#[test]
+fn collect_external_writes_only_the_manifest() {
+    let env = TestEnv::new("collect-external");
+    env.write(".config/hypr/hyprland.conf", "exec-once = kitty\n");
+
+    let repo = env.root.join("their-repo");
+    std::fs::create_dir_all(repo.join("dot_config")).unwrap();
+    std::fs::write(repo.join("README.md"), "theirs\n").unwrap();
+
+    env.run(&[
+        "collect",
+        "hypr",
+        "--wm",
+        "hyprland",
+        "--external",
+        "--out",
+        repo.to_str().unwrap(),
+        "-y",
+    ]);
+
+    let manifest = std::fs::read_to_string(repo.join("dotfiles.toml")).unwrap();
+    assert!(manifest.contains("mode = \"external\""), "{manifest}");
+    assert!(
+        manifest.contains("managed_by = \"chezmoi\""),
+        "dot_ names are the marker when the repo carries no dot-file: {manifest}"
+    );
+    assert!(!repo.join("config").exists(), "no files were copied");
+    assert_eq!(
+        std::fs::read_to_string(repo.join("README.md")).unwrap(),
+        "theirs\n",
+        "and their README is still their README"
     );
 }

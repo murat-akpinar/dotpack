@@ -40,6 +40,7 @@ pub fn collect(
     ignore: &[String],
     name: Option<String>,
     wm: Wm,
+    mode: Mode,
 ) -> Result<Collected> {
     let mut warnings = Vec::new();
     let selection = match selection {
@@ -85,7 +86,11 @@ pub fn collect(
                 continue;
             }
             sources.push(absolute.clone());
-            files.push((absolute, relative));
+            // External mode scans the same tree and ships none of it: the files are
+            // already in chezmoi's or stow's repo, and this run adds only the manifest.
+            if mode == Mode::Symlink {
+                files.push((absolute, relative));
+            }
         }
     }
 
@@ -141,11 +146,21 @@ pub fn collect(
             }
             fonts::Source::Ship(path) => {
                 detail.path = Some(paths::contract(path));
-                if !finding.role.starts_with("font") {
+                // Fonts ship with the bundle (below) and need no warning — unless
+                // nothing ships at all, and then a font no package provides is a line in
+                // the manifest the receiver cannot act on.
+                if !finding.role.starts_with("font") || mode == Mode::External {
                     warnings.push(format!(
-                        "{} is not provided by any package. Copy it into the bundle's \
-                         local/share/ yourself, or leave it as a manual step",
-                        paths::contract(path)
+                        "{} is not provided by any package{}",
+                        paths::contract(path),
+                        match mode {
+                            Mode::External =>
+                                ", and external mode ships nothing — whoever installs \
+                                 this manifest gets it by hand",
+                            _ =>
+                                ". Copy it into the bundle's local/share/ yourself, or \
+                                 leave it as a manual step",
+                        }
                     ));
                 }
             }
@@ -166,6 +181,7 @@ pub fn collect(
     for finding in &found_fonts {
         if let fonts::Source::Ship(path) = &finding.source
             && finding.role.starts_with("font")
+            && mode == Mode::Symlink
         {
             let directory = if path.is_dir() {
                 path.clone()
@@ -210,7 +226,7 @@ pub fn collect(
             wm,
             distro: "arch".into(),
             preview: None,
-            mode: Mode::Symlink,
+            mode,
             managed_by: None,
             services: Vec::new(),
             ignore: ignore.to_vec(),

@@ -30,6 +30,9 @@ pub struct Plan {
     pub remove: Vec<String>,
     pub detached: Vec<String>,
     pub warnings: Vec<String>,
+    /// The role list, in `external` mode only — there the plan has no links to show and
+    /// this is the bundle's whole description of what is being installed.
+    pub roles: Vec<String>,
     /// `components` carrying a `url`: the user installs these by hand. Never fetched
     /// (invariant 11).
     pub manual: Vec<String>,
@@ -80,6 +83,7 @@ pub fn plan(bundle: &Bundle, options: Options) -> Result<Plan> {
     };
 
     let mut warnings = bundle.manifest.validate()?;
+    warnings.extend(external_note(&bundle.manifest));
     warnings.extend(machine_warnings(bundle)?);
     let (hooks, hook_warning) = hooks(bundle, &ledger, options);
     warnings.extend(hook_warning);
@@ -94,8 +98,33 @@ pub fn plan(bundle: &Bundle, options: Options) -> Result<Plan> {
         remove: remove.iter().map(|e| e.target.clone()).collect(),
         detached,
         warnings,
+        roles: match bundle.manifest.mode {
+            crate::manifest::Mode::External => {
+                crate::post::list(&bundle.manifest, crate::post::Format::Plain)
+                    .lines()
+                    .map(str::to_string)
+                    .collect()
+            }
+            _ => Vec::new(),
+        },
         manual: manual_steps(bundle),
         hooks,
+    })
+}
+
+/// `external` mode ships no files, and the one thing the user must not have to work out
+/// for themselves is that placing them is still their job (manifest.md, mode).
+/// `managed_by` is informational: it is printed here and the tool is never called.
+fn external_note(manifest: &crate::manifest::Manifest) -> Option<String> {
+    (manifest.mode == crate::manifest::Mode::External).then(|| {
+        format!(
+            "external mode — packages and services only, no files are placed. \
+             {} places them, and you run it yourself",
+            manifest
+                .managed_by
+                .as_deref()
+                .unwrap_or("whatever manages your dotfiles")
+        )
     })
 }
 
@@ -236,6 +265,7 @@ pub fn switch(bundle: &Bundle, plan: Plan) -> Result<Summary> {
     if backup_taken(&ledger, &stamp) {
         summary.backup_dir = Some(paths::backups().join(&stamp));
     }
+    summary.notes.extend(external_note(&bundle.manifest));
     system::reload(bundle.manifest.wm, &mut summary.notes);
     Ok(summary)
 }

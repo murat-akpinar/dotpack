@@ -205,7 +205,14 @@ pacman = ["i3-wm", "polybar", "picom", "kitty", "zsh"]
 ```
 
 In `external` mode, `dotpack use` **installs the packages, shows the roles, and does not
-touch files.** The user runs `chezmoi apply` themselves.
+touch files.** The user runs `chezmoi apply` themselves. With no links to list, the role
+list *is* the plan, and the line naming `managed_by` appears twice: once in the plan, once
+in the summary after the packages are in. The bundle's own tree is not read either — a
+`dot_config/…` path resolves against chezmoi's layout, not ours, so the §5.1 reference
+check stays out of it.
+
+`dotpack collect --external --out <repo>` writes exactly this file into a repo you already
+keep, and fills `managed_by` in from that repo's markers.
 
 This is not a fallback plan, it is **the way the standard spreads.** Adding one file to an
 existing chezmoi repo is far lower friction than migrating that repo to our layout. The

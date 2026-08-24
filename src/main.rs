@@ -46,6 +46,10 @@ enum Command {
         /// Keep a path out of the bundle. Repeatable, collect-time only
         #[arg(long)]
         ignore: Vec<String>,
+        /// Write only `dotfiles.toml`, into a repo chezmoi or stow already manages —
+        /// no files are copied and `use` will place none
+        #[arg(long)]
+        external: bool,
         /// Do not `git init` the result
         #[arg(long)]
         no_git: bool,
@@ -126,9 +130,10 @@ fn main() -> Result<()> {
             name,
             wm,
             ignore,
+            external,
             no_git,
             yes,
-        }) => collect(&dirs, out, name, wm, &ignore, !no_git, yes),
+        }) => collect(&dirs, out, name, wm, &ignore, external, !no_git, yes),
         Some(Command::Post { name, format }) => post(name, format),
         Some(Command::Add { source, as_name }) => add(&source, as_name.as_deref()),
         None => bail!("the TUI is M6 — use a subcommand for now (`dotpack --help`)"),
@@ -220,6 +225,7 @@ fn show(plan: &apply::Plan) {
         }
     }
     for (label, list) in [
+        ("role", &plan.roles),
         ("link", &plan.place),
         ("unlink", &plan.remove),
         ("detached", &plan.detached),
@@ -265,12 +271,16 @@ fn confirm(verb: &str) -> Result<bool> {
 
 // --- collect start ---
 
+// The arguments *are* `collect`'s flags — a struct to hold them would be clap's job done
+// twice.
+#[allow(clippy::too_many_arguments)]
 fn collect(
     dirs: &[String],
     out: Option<std::path::PathBuf>,
     name: Option<String>,
     wm: Option<String>,
     ignore: &[String],
+    external: bool,
     git: bool,
     yes: bool,
 ) -> Result<()> {
@@ -280,8 +290,21 @@ fn collect(
         None => scan::wm::detect()
             .ok_or_else(|| anyhow::anyhow!("could not tell which WM this is — pass --wm"))?,
     };
-    let collected = scan::collect(dirs, ignore, name, wm)?;
+    let mode = match external {
+        true => manifest::Mode::External,
+        false => manifest::Mode::Symlink,
+    };
+    let mut collected = scan::collect(dirs, ignore, name, wm, mode)?;
     let out = out.unwrap_or_else(|| paths::home().join("dotfiles"));
+    if external {
+        collected.manifest.managed_by = managed_by(&out);
+        if collected.manifest.managed_by.is_none() {
+            collected.warnings.push(format!(
+                "{} does not look like a chezmoi or stow repo — set `managed_by` by hand",
+                out.display()
+            ));
+        }
+    }
 
     println!("collect: {} ({wm:?})", collected.manifest.name);
     for (directory, count) in counts(&collected) {
@@ -336,8 +359,30 @@ fn collect(
     for note in apply::write::write_bundle(&collected, &out, git)? {
         println!("  {note}");
     }
-    println!("wrote {} — {} files", out.display(), collected.files.len());
+    match external {
+        true => println!("wrote {}/dotfiles.toml — packages only", out.display()),
+        false => println!("wrote {} — {} files", out.display(), collected.files.len()),
+    }
     Ok(())
+}
+
+/// Whose repo this is, for `managed_by` — informational, and the tool is never called
+/// (manifest.md, mode). Read off the markers each one leaves at the root of its source
+/// directory; guessing wrong is a wrong line in a file, so a guess is not made.
+fn managed_by(out: &Path) -> Option<String> {
+    let has = |name: &str| out.join(name).exists();
+    if has(".chezmoiroot") || has(".chezmoiignore") || has(".chezmoi.toml.tmpl") {
+        return Some("chezmoi".into());
+    }
+    if has(".stow-local-ignore") || has(".stowrc") {
+        return Some("stow".into());
+    }
+    // chezmoi's own naming, which is the marker when the repo carries no dot-file at all.
+    std::fs::read_dir(out)
+        .ok()?
+        .flatten()
+        .any(|e| e.file_name().to_string_lossy().starts_with("dot_"))
+        .then(|| "chezmoi".into())
 }
 
 /// Files per top-level directory in the bundle, in the order they will appear in it.
@@ -418,6 +463,9 @@ fn list() -> Result<()> {
                 } else {
                     String::new()
                 };
+                if m.mode == manifest::Mode::External {
+                    state.push_str(if active { " · external" } else { "external" });
+                }
                 if active {
                     let detached = ledger
                         .links

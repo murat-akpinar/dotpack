@@ -153,7 +153,7 @@ fn owned_or_shipped(path: &Path, warnings: &mut Vec<String>) -> Source {
         FileSearch::Nothing => Source::Ship(path.to_path_buf()),
         FileSearch::NoDatabase => {
             let warning = format!(
-                "`pacman -Fy` has never run here, so {basename} is shipped as a file — a \
+                "`pacman -Fy` has never run here, so no package could be matched for {basename} — a \
                  repo may well carry it"
             );
             if !warnings.contains(&warning) {

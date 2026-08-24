@@ -1,7 +1,8 @@
 # Work Plan
 
 The design is done (`docs/`). This file says in which order the code gets written, and
-what each milestone actually turned out to be worth. **M0–M4 are done**; M5 is next.
+what each milestone actually turned out to be worth. **M0–M5 are done**; M6 (the TUI) is
+next.
 
 **Ordering principle:** every milestone leaves behind **something usable on its own**. Not
 a half-finished layer, a working tool. When M1 is done it has to produce value for a single
@@ -84,7 +85,7 @@ Answered, recorded here so they stop being re-asked:
 - **Where `collect` writes** → **`~/dotfiles` by default**, `--out` overrides, a
   non-empty directory is refused. The TUI's 1/5 screen has to prefill an output path
   anyway, so the default exists either way; making the CLI reject it only puts the same
-  default in two places. The refusal points at `collect --external` (M5), because a
+  default in two places. The refusal points at `collect --external`, because a
   non-empty `~/dotfiles` usually means chezmoi or stow already lives there.
 - **What `collect` selects with no arguments** → **the pre-ticked set**: the WM's own
   directory plus the ones its config starts or points at. Arguments override it. Making
@@ -391,14 +392,46 @@ not a test-only branch in the code.
 The way the standard spreads. The reading half can be done at any point after M0; the
 writing half is a flag on a command that does not exist until M2.
 
-- [ ] `mode = "external"` — do not touch files, install packages, show roles
-- [ ] The `managed_by` field (informational, the tool is not called)
-- [ ] `collect --external` — generate only the manifest for an existing chezmoi/stow repo
+- [x] `mode = "external"` — do not touch files, install packages, show roles
+- [x] The `managed_by` field (informational, the tool is not called)
+- [x] `collect --external` — generate only the manifest for an existing chezmoi/stow repo
       **(needs M2)**
-- [ ] A clear warning in the install summary: "you will place the files with `chezmoi apply`"
+- [x] A clear warning in the install summary: "you will place the files with `chezmoi apply`"
 
 **Done means:** a single `dotfiles.toml` added to Brozi's chezmoi repo installs the
 packages via `dotpack use` and touches no files.
+
+✅ Done, and it is the cheapest milestone in the plan by a distance — half a weekend, and
+most of that was finding the places that *read* files rather than write them.
+`tests/switch.rs` covers both halves against a temporary HOME: activating an external
+bundle leaves the filesystem bit-for-bit unchanged (the same snapshot comparison M1's
+round trip uses), and `collect --external` adds one file to a repo that already has a
+README.
+
+- **`links()` was already right; `shipped()` was not.** The write path never had a bug —
+  it asks the bundle for links and an external bundle returns none. The receiver-side
+  reference check (M4) walks a *second* list, and it would have read chezmoi's
+  `dot_config/…` tree and reported every `source ~/…` line in it as dangling. Not ours to
+  place means not ours to judge, and that is one guard in the same file as the first.
+- **With nothing to link, the plan is the role list.** `post::list` already renders it
+  (M3), so external mode prints `Bar: waybar` where a symlink bundle prints its targets.
+  No new renderer, and the plan screen stays one function.
+- **`managed_by` is read off the repo, never guessed.** The markers each tool leaves at
+  the root — `.chezmoiroot` / `.chezmoiignore` / `.chezmoi.toml.tmpl`, `.stow-local-ignore`
+  / `.stowrc`, and failing all of those a `dot_*` entry, which is chezmoi's naming and the
+  marker in a repo carrying no dot-file at all. Nothing matches → the field is left out and
+  a warning says to write it by hand. It is informational, so a wrong value is a wrong line
+  in somebody's manifest for nothing.
+- **A font that no package provides changes meaning.** In symlink mode it ships inside the
+  bundle (§5.2). In external mode nothing ships, so the same finding is a warning saying
+  whoever installs this manifest gets it by hand. Found by running it on this machine, where
+  `pacman -Fy` has never run and two fonts land in exactly that branch — the message there
+  said "is shipped as a file", which in external mode was a sentence about something that
+  does not happen.
+
+Run against this machine's real `~/.config` into a directory holding a `dot_config/` and a
+README: `managed_by = "chezmoi"`, 38 packages, `dotfiles.toml` the only file added, and the
+README untouched.
 
 ---
 

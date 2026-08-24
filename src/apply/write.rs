@@ -12,10 +12,29 @@ use anyhow::{Context, Result, bail};
 use crate::scan::Collected;
 
 pub fn write_bundle(collected: &Collected, out: &Path, git: bool) -> Result<Vec<String>> {
+    // `external`: the directory is someone's chezmoi or stow repo, already full and
+    // already a git repo. One file is added to it — not a README on top of the one they
+    // have, and not a `git init` in a tree that is already tracked.
+    if collected.manifest.mode == crate::manifest::Mode::External {
+        let file = out.join("dotfiles.toml");
+        if file.exists() {
+            bail!("{} already has a dotfiles.toml", out.display());
+        }
+        std::fs::create_dir_all(out)?;
+        std::fs::write(file, collected.manifest.to_toml()?)?;
+        return Ok(vec![format!(
+            "no files copied — {} places them, `dotpack use` installs the packages",
+            collected
+                .manifest
+                .managed_by
+                .as_deref()
+                .unwrap_or("your own tool")
+        )]);
+    }
     if out.is_dir() && out.read_dir()?.next().is_some() {
         bail!(
             "{} is not empty. Pass --out <dir> for somewhere else — or, if it is a chezmoi \
-             or stow repo you already keep, `collect --external` (M5) adds a manifest to it \
+             or stow repo you already keep, `collect --external` adds a manifest to it \
              instead of a bundle beside it",
             out.display()
         );

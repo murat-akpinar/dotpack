@@ -14,7 +14,7 @@ The verbs:
 
 | Command | Job |
 |---|---|
-| `dotpack collect` | Scans the machine's configs + packages, produces a bundle in the standard format |
+| `dotpack collect` | Scans the machine's configs + packages, produces a bundle in the standard format — `--external` writes only `dotfiles.toml`, into a repo chezmoi or stow already manages |
 | `dotpack add <source>` | Downloads a remote/local bundle into the local store (does not install) — `--as <name>` on a name collision |
 | `dotpack use <name>` | Makes a bundle **active** — this is the rice switch. Takes a source too, and `--no-hooks` / `--run-hooks` decide what happens to the bundle's scripts |
 | `dotpack ls` | Bundles in the local store, and which one is active |
@@ -205,6 +205,16 @@ directory, `dotfiles.toml`, `README.md`, and optionally `git init` + a first com
 
 The output is a directory. `git remote add` + `push` is the user's job — the tool does
 not wrap git.
+
+**`collect --external` writes one file instead of a directory**: `dotfiles.toml`, into a
+tree that is already somebody's chezmoi or stow repo. The scan is the same scan — the same
+directories are read, the same packages found — and nothing is copied, including the fonts
+that a symlink collect would put in `local/share/fonts/`; those become a warning, because
+in external mode the receiver gets no files at all. `managed_by` is read off the repo's own
+markers (`.chezmoiroot`, `.chezmoiignore`, `.stow-local-ignore`, or a `dot_*` entry) and is
+left out when none match: it is informational, so a guess there is a wrong line in someone
+else's manifest. An existing `dotfiles.toml` is never overwritten, and no `README.md` is
+written on top of the one the repo already has.
 
 ### 4.2 First activation
 

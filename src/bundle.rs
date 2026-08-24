@@ -60,6 +60,13 @@ impl Bundle {
     /// file, because a reference inside a file resolves against the file's own target.
     pub fn shipped(&self) -> Result<Vec<(PathBuf, PathBuf)>> {
         let mut out = Vec::new();
+        // Same rule as [`Self::links`]: in `external` mode the tree belongs to
+        // chezmoi/stow. Its files are not ours to place, so they are not ours to judge —
+        // a `dot_config/` name resolves to nothing here and every reference in it would
+        // be reported as dangling.
+        if self.manifest.mode == Mode::External {
+            return Ok(out);
+        }
         for (area, base) in [
             ("config", paths::config()),
             ("home", paths::home()),

@@ -9,9 +9,10 @@ them in one command, and switches between rices by re-pointing symlinks.
 
 Rust + ratatui · Arch only · hyprland / sway / i3.
 
-**M0–M4 are done: switching, `collect`, `post` + the generated README, and sharing —
-`use github:user/repo` clones, plans, warns and runs the bundle's hooks.** M5
-(`external` mode) is next; the TUI is M6 and `src/tui/` does not exist yet. Read
+**M0–M5 are done: switching, `collect`, `post` + the generated README, sharing —
+`use github:user/repo` clones, plans, warns and runs the bundle's hooks — and `external`
+mode, where a bundle ships no files and `collect --external` adds a manifest to a chezmoi
+or stow repo.** The TUI is M6, is next, and `src/tui/` does not exist yet. Read
 `docs/design.md` before proposing any structure, and `docs/real-world.md` for what
 real shared rices actually look like (several design rules come from that teardown).
 `TODO.md` is the running score: each finished milestone carries a note on what it cost and
