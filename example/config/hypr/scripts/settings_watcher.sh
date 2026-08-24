@@ -38,8 +38,13 @@ compile_settings() {
     # Safely parse booleans so "false" doesn't trigger a fallback
     GUIDE_STARTUP=$(jq -r 'if has("openGuideAtStartup") then .openGuideAtStartup else true end' "$SETTINGS_FILE")
 
-    PIC_DIR="$(xdg-user-dir PICTURES 2>/dev/null || echo "$HOME/Pictures")"
-    VID_DIR="$(xdg-user-dir VIDEOS 2>/dev/null || echo "$HOME/Videos")"
+    # xdg-user-dir SUCCEEDS with $HOME on a machine that has no user-dirs.dirs, so the
+    # `|| echo` these two used to carry never fired: env.conf came out naming $HOME
+    # itself as the pictures directory. The answer has to be looked at, not just tested.
+    PIC_DIR="$(xdg-user-dir PICTURES 2>/dev/null)"
+    VID_DIR="$(xdg-user-dir VIDEOS 2>/dev/null)"
+    if [ -z "$PIC_DIR" ] || [ "$PIC_DIR" = "$HOME" ]; then PIC_DIR="$HOME/Pictures"; fi
+    if [ -z "$VID_DIR" ] || [ "$VID_DIR" = "$HOME" ]; then VID_DIR="$HOME/Videos"; fi
 
     # Read the hardware variables injected by install.sh directly out of the JSON
     HW_ENV=$(jq -r '.hardwareEnvs[]? // empty' "$SETTINGS_FILE")

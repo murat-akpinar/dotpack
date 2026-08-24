@@ -274,7 +274,7 @@ deduplication and the fixes above. Every one is true, and none is a missing file
 | What | Count | |
 |---|---|---|
 | `~/.face`, `~/.face.icon` | 2 | the lock screen's avatar. A bundle must not ship your face |
-| `~/.config/hypr/settings.json` | 1 | `ignore`d on purpose; every consumer falls back |
+| `~/.config/hypr/settings.json` | 1 | `ignore`d on purpose. "Every consumer falls back" was not true of the *compiler* — see finding 15 |
 | `quickshell/calendar/.env` | 1 | the API key, withheld on purpose |
 | matugen's outputs under `nvim/`, `rofi/`, `qt5ct/`, `qt6ct/` | 6 | files the colour pipeline **writes**, into configs this bundle does not manage |
 | `env.conf.tmp` | 1 | a temp file `--compile` creates and deletes |
@@ -288,6 +288,36 @@ rather than a keyword list, so it is marked in `src/scan/refs.rs` and not built.
 lines a receiver can read to the end is the point; thirty-eight was not.
 
 ---
+
+**15: installing it on another machine found an empty `WALLPAPER_DIR`.** The first end to
+end run against a second box — clone from GitHub, plan, hook, links — put this in the
+generated `env.conf`:
+
+```
+env = XDG_PICTURES_DIR,/home/murat/dp-lab2
+env = WALLPAPER_DIR,
+```
+
+Two separate faults, both in the rice and neither visible on the machine it was written
+on:
+
+- **`settings.json` is not shipped, and `--compile` reads the wallpaper directory out of
+  it.** On a fresh install it is `{}`, so the substitution puts nothing there. The table
+  above said every consumer of that file falls back; the compiler does not — it
+  substitutes the empty string and the UI comes up with no directory at all. The hook
+  seeds the file before compiling now, with `~/Pictures/Wallpapers` and the directory
+  made. It ships no images: what goes in it is still the receiver's, for the licensing
+  reason in the table below.
+- **`xdg-user-dir PICTURES` succeeds with `$HOME`** when the machine has no
+  `user-dirs.dirs`, so `xdg-user-dir PICTURES || echo "$HOME/Pictures"` never reached its
+  fallback and `XDG_PICTURES_DIR` became the home directory itself. A command that fails
+  by returning the wrong answer instead of a bad exit code defeats `||`; the answer is
+  compared now, in `settings_watcher.sh`, for pictures and videos both.
+
+Neither is dotpack's, and that is the point of the acceptance test: the tool did its half
+correctly — 72 of 76 packages already satisfied, five links, the hook approved and run
+once — and what it surfaced was the bundle shipping a config compiled from an input it
+does not ship.
 
 ## The hook
 

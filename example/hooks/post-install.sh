@@ -14,6 +14,23 @@
 # It rewrites files inside the bundle, which is what symlink mode means: ~/.config/hypr
 # *is* the bundle. dotpack has no templating of its own (design.md §7) and does not need
 # any here — the rice brought its own.
+#
+# The compiler takes the wallpaper directory out of settings.json, which is runtime state
+# and not shipped — so on a fresh install it reads `{}` and writes `WALLPAPER_DIR=` with
+# nothing after it. Seeded here, the UI has a directory to put images in; what goes in it
+# is still yours (the bundle ships no wallpapers, see the README).
+settings="$HOME/.config/hypr/settings.json"
+if [ ! -s "$settings" ] || [ -z "$(jq -r '.wallpaperDir // empty' "$settings" 2>/dev/null)" ]; then
+    # `xdg-user-dir PICTURES` SUCCEEDS with $HOME when the machine has no user-dirs.dirs,
+    # so a `|| fallback` never fires — the answer has to be looked at, not just tested.
+    pictures=$(xdg-user-dir PICTURES 2>/dev/null)
+    if [ -z "$pictures" ] || [ "$pictures" = "$HOME" ]; then
+        pictures="$HOME/Pictures"
+    fi
+    printf '{"wallpaperDir":"%s/Wallpapers"}\n' "$pictures" > "$settings"
+    mkdir -p "$pictures/Wallpapers"
+fi
+
 ~/.config/hypr/scripts/settings_watcher.sh --compile
 # --- generated configs end ---
 
