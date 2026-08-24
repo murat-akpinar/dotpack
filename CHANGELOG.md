@@ -1,5 +1,10 @@
 ## [0.1.0] - 2026-08-24
 
+### 📚 Documentation
+
+- *(readme)* Name the crates.io route, and why it is the second-best one ([8f1e73a](https://github.com/murat-akpinar/dotpack/commit/8f1e73a21a6912d2ade9456bb750eba135bc30a3))
+## [0.1.0] - 2026-08-24
+
 ### 🚀 Features
 
 - *(m0)* Manifest types, layout rules and the CLI skeleton ([15291d5](https://github.com/murat-akpinar/dotpack/commit/15291d5436b066094a92ff8e6357c0778d425fcc)) — The first code in the repo. M0's whole job is that the two things every later milestone reads — the manifest and the layout — are settled and tested before anything writes to a disk.
