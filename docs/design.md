@@ -333,7 +333,35 @@ Resolution, and what each outcome means:
 | nothing (the file does not exist) | ⚠ report: the reference is already dead on this machine |
 
 Variables (`$HOME`, `~`) are expanded; anything else containing a `$` is left alone and
-reported as "could not resolve" rather than guessed.
+reported as "could not resolve" rather than guessed. **With one addition, and it came from
+shipping the example bundle's quickshell directory:** a variable whose *value* is a path,
+assigned earlier in the same file, is carried down the file.
+
+```bash
+SCRIPT_DIR="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"   # line 3
+source "$SCRIPT_DIR/../../caching.sh"                       # line 4 — and it IS shipped
+```
+
+The substitution above only reaches inside one line, so three references came back
+"could not resolve" and the plan told the receiver a file the bundle ships was missing.
+That is the same shape as sway's `set $term foot` in §5 — the definition and the use are
+never on the same line — and lying about a file that is there is worse than any false
+negative. Two consequences, both of them narrowing:
+
+- a last path component that is a **pattern rather than a name** resolves to its
+  directory. `config.d/*` was already this rule; `output/${PRESET_NAME}.json` is the same
+  thing said with a variable, and neither is a file anybody forgot to ship.
+- the receiving side reports **one line per missing path**, not per line naming it. A rice
+  assigns `SETTINGS_FILE=` once and reads it a dozen times, and twelve identical warnings
+  is how a list stops being read. Over the complete example bundle this is the difference
+  between 38 findings and 13.
+
+**Read and write are not distinguished, and that is the known ceiling.** matugen's
+`config.toml` declares eleven `output_path`s; the check reports them as files the bundle
+does not ship, which is true and useless. Telling a destination from a source means
+parsing the grammar of the line — `>`, `output_path =`, an array of targets — so it is
+marked in `src/scan/refs.rs` rather than guessed at. Six of the thirteen findings on the
+example bundle are this.
 
 The same check runs at **validation time** on somebody else's bundle (§4.2 step 2), where
 it is the cheapest possible answer to "will this rice actually work when it lands?" — it

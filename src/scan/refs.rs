@@ -64,6 +64,12 @@ pub struct Reference {
 
 impl Reference {
     /// The ones worth showing: everything the bundle would install broken.
+    ///
+    /// ponytail: a reference is not classified read vs write, so a rice's own **output**
+    /// paths come back as findings too — matugen's `output_path` list names eleven files
+    /// it is about to write. Telling them apart needs the line's grammar (`> "$X"`,
+    /// `output_path = …`, an array of destinations), which is a parser rather than a
+    /// keyword. Until then they are reported and the bundle's README says why.
     pub fn dangling(&self) -> bool {
         matches!(
             self.verdict,
@@ -99,7 +105,13 @@ pub fn scan_at(files: &[(PathBuf, PathBuf)]) -> Vec<Reference> {
         };
         let dir = at.parent().unwrap_or(Path::new("/"));
 
+        // Path-valued variables, in the order the file assigns them.
+        let mut vars: Vec<(String, String)> = Vec::new();
         for (index, line) in text.lines().enumerate() {
+            let line = &expand_vars(line, &vars);
+            if let Some(assigned) = assignment(line, dir) {
+                vars.push(assigned);
+            }
             for raw in references_in(line, dir) {
                 // A bare variable is not a file reference — `$CACHE_FILE` is unknowable
                 // and saying so on every line is how a check gets switched off. One with
@@ -178,6 +190,50 @@ fn substitute_dirname(line: &str, dir: &Path) -> String {
     out
 }
 
+/// `SCRIPT_DIR="$(dirname …)"` on line 3 and `source "$SCRIPT_DIR/../../caching.sh"` on
+/// line 4 is the idiom every rice's own scripts use. Unexpanded it reports a file the
+/// bundle **does** ship as missing, which is the worst thing a check can do. Same class
+/// as sway's `set $term foot` in the dependency scan: the definition and the use are on
+/// different lines.
+fn assignment(line: &str, dir: &Path) -> Option<(String, String)> {
+    let (name, value) = line.trim().split_once('=')?;
+    // `$scripts = ~/.config/hypr/scripts` is how hyprland spells the same thing.
+    let name = name.trim().trim_start_matches('$');
+    if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+        return None;
+    }
+    let value = clean(&substitute_dirname(value, dir));
+    ["/", "~/", "$HOME/"]
+        .iter()
+        .any(|p| value.starts_with(p))
+        .then(|| (name.to_string(), value))
+}
+
+fn expand_vars(line: &str, vars: &[(String, String)]) -> String {
+    let mut out = line.to_string();
+    for (name, value) in vars {
+        for form in [format!("${{{name}}}"), format!("${name}")] {
+            let mut at = 0;
+            while let Some(found) = out[at..].find(&form) {
+                let (start, end) = (at + found, at + found + form.len());
+                // `$SCRIPT` must not match inside `$SCRIPT_DIR`.
+                let whole = form.ends_with('}')
+                    || !out[end..]
+                        .chars()
+                        .next()
+                        .is_some_and(|c| c.is_ascii_alphanumeric() || c == '_');
+                if whole {
+                    out.replace_range(start..end, value);
+                    at = start + value.len();
+                } else {
+                    at = end;
+                }
+            }
+        }
+    }
+    out
+}
+
 /// Strip what surrounds a path in a config file, never what is in it. A reference in a
 /// QML array or a JSON object ends `…/reload.sh"}`, and one character of leftover
 /// punctuation turns a file that exists into a "dead reference".
@@ -206,19 +262,22 @@ fn resolve(raw: &str, dir: &Path) -> Option<PathBuf> {
     } else {
         dir.join(raw)
     };
-    // Anything else with a variable in it is reported, not guessed.
-    if expanded.to_string_lossy().contains('$') {
-        return None;
-    }
-    // `include ~/.config/sway/config.d/*` — sway's and i3's own way of splitting a config,
-    // and the last line of the config they ship. The directory is the reference; a literal
-    // `*` resolves to nothing and would be called dead on every bundle that uses it.
+    // A last component that is a pattern rather than a name: `include
+    // ~/.config/sway/config.d/*`, sway's and i3's own way of splitting a config and the
+    // last line of the one they ship, and `easyeffects/output/${PRESET_NAME}.json`, a
+    // name only the running script knows. In both cases the **directory** is the
+    // reference; the literal resolves to nothing and would be called dead on every
+    // bundle that uses it.
     let expanded = match expanded.file_name().and_then(|n| n.to_str()) {
-        Some(name) if name.contains('*') || name.contains('?') => {
+        Some(name) if ["*", "?", "$"].iter().any(|c| name.contains(c)) => {
             expanded.parent().unwrap_or(&expanded).to_path_buf()
         }
         _ => expanded,
     };
+    // Anything still carrying a variable is reported, not guessed.
+    if expanded.to_string_lossy().contains('$') {
+        return None;
+    }
     Some(normalize(&expanded))
 }
 
@@ -351,6 +410,31 @@ mod tests {
             ),
             ["/scripts/caching.sh"]
         );
+    }
+
+    /// The definition and the use are on different lines — `caching.sh` is shipped, and
+    /// unexpanded the check calls it missing.
+    #[test]
+    fn a_path_variable_is_carried_down_the_file() {
+        let dir = Path::new("/hypr/scripts/quickshell/network");
+        let assigned = assignment(
+            "SCRIPT_DIR=\"$(dirname \"$(realpath \"${BASH_SOURCE[0]}\")\")\"",
+            dir,
+        )
+        .expect("a $(dirname …) assignment is a path");
+        let vars = vec![assigned];
+        assert_eq!(
+            references_in(
+                &expand_vars("source \"$SCRIPT_DIR/../../caching.sh\"", &vars),
+                dir
+            ),
+            ["/hypr/scripts/quickshell/network/../../caching.sh"]
+        );
+        // `$SCRIPT` must not match inside `$SCRIPT_DIR`, and a value that is not a path
+        // is not a variable worth carrying.
+        assert_eq!(expand_vars("$SCRIPT_DIRX", &vars), "$SCRIPT_DIRX");
+        assert_eq!(assignment("env = SCRIPT_DIR,/x/y", Path::new("/")), None);
+        assert_eq!(assignment("reload_apps = false", Path::new("/")), None);
     }
 
     #[test]

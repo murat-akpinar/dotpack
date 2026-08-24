@@ -186,8 +186,20 @@ fn machine_warnings(bundle: &Bundle) -> Result<Vec<String>> {
     // side: shipping `kitty.conf` without the `catppuccin.conf` it includes installs a
     // kitty that errors on every start (design.md §5.1).
     let shipped = bundle.shipped()?;
+    // One line per **missing path**, not per line that names it. A rice assigns
+    // `SETTINGS_FILE="$HOME/.config/hypr/settings.json"` once and reads it a dozen times;
+    // twelve identical warnings is how a list stops being read.
+    let mut reported = std::collections::BTreeSet::new();
     for reference in crate::scan::refs::scan_at(&shipped) {
         if !reference.dangling() {
+            continue;
+        }
+        if !reported.insert(
+            reference
+                .path
+                .clone()
+                .unwrap_or_else(|| reference.raw.clone().into()),
+        ) {
             continue;
         }
         warnings.push(format!(

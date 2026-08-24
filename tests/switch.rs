@@ -29,7 +29,7 @@ const STUBBED: &[&str] = &[
 #[test]
 fn a_to_b_and_back_is_a_round_trip() {
     let env = TestEnv::new("round-trip");
-    let a = Path::new(env!("CARGO_MANIFEST_DIR")).join("example");
+    let a = env.example();
     let b = env.bundle_b();
 
     // A user who already has a hypr config and something of their own next to it.
@@ -130,6 +130,21 @@ impl TestEnv {
         }
         let path = format!("{}:{}", stubs.display(), std::env::var("PATH").unwrap());
         Self { root, home, path }
+    }
+
+    /// `example/` is a fixture and this test runs its hook, which regenerates the rice's
+    /// own config from `templates/` — inside the bundle, because that is what symlink
+    /// mode means. Pointed at the repo it would rewrite the checked-in files with this
+    /// test's temporary HOME. Copy first; `-a` keeps the mode bits invariant 9 is about.
+    fn example(&self) -> PathBuf {
+        let from = Path::new(env!("CARGO_MANIFEST_DIR")).join("example");
+        let ok = std::process::Command::new("cp")
+            .args(["-a".as_ref(), from.as_os_str(), self.root.as_os_str()])
+            .status()
+            .unwrap()
+            .success();
+        assert!(ok, "cp -a example/ into the test root");
+        self.root.join("example")
     }
 
     /// A second bundle, deliberately covering what `example/` does not: per-file links
@@ -270,6 +285,12 @@ impl TestEnv {
         let ours = [
             self.home.join(".local/state/dotpack"),
             self.home.join(".local/share/dotpack"),
+            // Not ours, and not undoable either: `example/`'s hook runs the rice's own
+            // `settings_watcher.sh --compile`, which mkdirs `~/.cache/settings_watcher`.
+            // Hooks are one-way by design (invariant 13) — the round trip is about links
+            // and backups, and `~/.cache` is runtime state in every other part of this
+            // codebase too.
+            self.home.join(".cache"),
         ];
         walk(&self.home)
             .into_iter()
