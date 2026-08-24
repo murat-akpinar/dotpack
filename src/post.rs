@@ -1,6 +1,6 @@
 //! `components` → the list people already write by hand, and the bundle's README.
 //!
-//! The rules are the spec's, not this file's: [docs/standard.md]. What matters about all
+//! The rules are the spec's, not this file's: [spec/components.md]. What matters about all
 //! of them is that the output is a function of the manifest and **nothing else** — no
 //! machine state, no network, no `url` ever fetched (invariant 11).
 
@@ -21,7 +21,7 @@ pub enum Format {
 
 // --- dictionary start ---
 /// Role → display name, **in the order the output uses**. Roles outside this table are
-/// appended alphabetically; they are not an error (standard.md, Role Dictionary).
+/// appended alphabetically; they are not an error (components.md, Role Dictionary).
 const ROLES: &[(&str, &str)] = &[
     ("wm", "WM"),
     ("compositor", "Compositor"),
@@ -304,7 +304,7 @@ pub fn copy(text: &str) -> bool {
 mod tests {
     use super::*;
 
-    /// The `[components]` block of docs/standard.md, verbatim.
+    /// The `[components]` block of spec/components.md, verbatim.
     const STANDARD: &str = r#"
 name        = "forest"
 description = "catppuccin mocha"

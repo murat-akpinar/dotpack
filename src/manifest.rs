@@ -1,4 +1,4 @@
-//! `dotfiles.toml` — the only mandatory file in a bundle. Schema: `docs/manifest.md`.
+//! `dotfiles.toml` — the only mandatory file in a bundle. Schema: `spec/manifest.md`.
 //!
 //! This module reads and validates; it never writes. Producing the file is
 //! `apply::write`'s job (invariant 1).

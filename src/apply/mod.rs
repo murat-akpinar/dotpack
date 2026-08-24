@@ -167,7 +167,7 @@ fn external_note(manifest: &crate::manifest::Manifest) -> Option<String> {
 
 /// What only this machine can say about a foreign bundle. None of it blocks: a sway
 /// config on hyprland, or a rice wanting a newer Hyprland, is still the user's call
-/// ([manifest.md](../docs/manifest.md)).
+/// ([manifest.md](../spec/manifest.md)).
 fn machine_warnings(bundle: &Bundle) -> Result<Vec<String>> {
     let mut warnings = Vec::new();
 

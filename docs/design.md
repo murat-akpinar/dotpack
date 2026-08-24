@@ -19,7 +19,7 @@ The verbs:
 | `dotpack use <name>` | Makes a bundle **active** — this is the rice switch. Takes a source too, and `--no-hooks` / `--run-hooks` decide what happens to the bundle's scripts |
 | `dotpack ls` | Bundles in the local store, and which one is active |
 | `dotpack sync` | Repairs the active bundle — writes a link an application replaced with a real file back into the bundle, then re-links |
-| `dotpack post [name]` | Renders `components` as a shareable list and copies it — `--format reddit\|markdown\|plain`, and the name may be a path. Defaults to the active bundle ([standard.md](./standard.md)) |
+| `dotpack post [name]` | Renders `components` as a shareable list and copies it — `--format reddit\|markdown\|plain`, and the name may be a path. Defaults to the active bundle ([components.md](../spec/components.md)) |
 | `dotpack rm <name>` | Removes a bundle from the store. The active one has to be deactivated first |
 
 `add` + `use` in one step: `dotpack use github:caelestia-dots/shell`
@@ -39,89 +39,28 @@ and one-off `copy` installs (§4.4 — `git clone` already does that).
 
 The name of this format: **bundle**. One git repo = one bundle.
 
-```
-awesome-rice/
-├── dotfiles.toml         # manifest — package lists + settings
-├── README.md             # human-readable summary, produced by collect
-├── config/               → ~/.config/
-│   ├── hypr/
-│   ├── waybar/
-│   ├── fish/
-│   └── kitty/
-├── home/                 → ~/
-│   ├── .bashrc
-│   ├── .gitconfig
-│   └── .zshrc
-├── local/                → ~/.local/
-│   ├── bin/
-│   └── share/
-│       ├── fonts/
-│       └── applications/
-├── assets/               → destination declared explicitly in dotfiles.toml (wallpapers etc.)
-│   └── wallpapers/
-└── hooks/                → scripts run at install time (optional)
-    ├── pre-install.sh
-    └── post-install.sh
-```
+**It is specified in [spec/README.md](../spec/README.md)** — the tree, the destination
+table, the link depth rule and the per-file rule for `home/` and `local/`. It moved out of
+this document when the format was split from the tool (M7), because a rule written down in
+two places is a rule that starts disagreeing with itself.
 
-### Rule: convention > configuration
+What belongs to this document rather than to the format:
 
-Where a file lands is implied by **the directory it sits in**. The manifest holds no
-file list:
-
-| Path inside the bundle | Destination |
-|---|---|
-| `config/<X>` | `~/.config/<X>` |  ← depth rule below
-| `home/<X>` | `~/<X>` |
-| `local/<X>` | `~/.local/<X>` |
-| `assets/<X>` | only if a destination is declared in `dotfiles.toml` → `assets` |
-
-Why:
-- `dotfiles.toml` stays small, hand-writable (which is what the user actually wants)
-- Adding a new file = copying it into a folder. No manifest update needed.
-- Someone browsing on GitHub can look under `config/` and see what they are getting
-- `assets/` is the exception, because there is no convention for where a wallpaper goes
-
-### Link depth rule
-
-Some rices do not take over the whole config directory, they install **underneath** it —
-CyberArch uses `~/.config/hypr/themes/cyberpunk` while the user's own hypr config stays
-in place ([real-world.md](./real-world.md) F2). One rule solves both cases:
-
-> Walk down from `config/`. If a directory **contains files directly**, link it and stop.
-> If it only contains directories, descend again — repeat until a directory with files
-> is reached.
-
-| Bundle content | What gets linked |
-|---|---|
-| `config/hypr/hyprland.conf` | `~/.config/hypr` |
-| `config/hypr/themes/cyberpunk/theme.conf` (no files above it) | `~/.config/hypr/themes/cyberpunk` |
-
-**The depth rule applies to `config/` only.** `home/` and `local/` are linked **per
-file**, always. `~`, `~/.local/bin` and `~/.local/share/fonts` are all *mixed*
-directories — they hold things that belong to the user, not to any bundle
-([real-world.md](./real-world.md) F17: hand-installed Nerd Fonts live exactly there). A
-directory link would hide them. Two rules, no exceptions inside either:
-
-| Area | Link granularity |
-|---|---|
-| `config/` | directory, at the depth-rule depth |
-| `home/`, `local/` | per file |
-
-Linking `~/.config/hypr/themes/cyberpunk` means `~/.config/hypr/themes/` may have to be
-**created** as a real directory first. Every directory created this way is recorded in
-the ledger and removed on deactivation if it is left empty — otherwise switching leaves
-litter behind.
-
-The reason `config/` and `home/` are separate: 90% of rices live under `~/.config`, and
-`config/` stays visible on GitHub. Dotted files like `home/.bashrc` will be hidden
-anyway — unavoidable there.
+- **`config/` and `home/` are separate** because 90% of rices live under `~/.config`, and
+  `config/` stays visible to somebody browsing the repo. Dotted files under `home/` are
+  hidden there whatever we do.
+- **The depth rule came from a real rice**, not from symmetry. CyberArch installs into
+  `~/.config/hypr/themes/cyberpunk` and leaves the user's own hypr config in place
+  ([real-world.md](./real-world.md) F2); a rule that always linked `~/.config/<dir>` would
+  have overwritten it.
+- **Directories created to place a link are ledger state** — §4's business, removed on
+  deactivation if they are empty.
 
 ---
 
 ## 3. dotfiles.toml
 
-Full schema: [manifest.md](./manifest.md). Summary:
+Full schema: [manifest.md](../spec/manifest.md). Summary:
 
 ```toml
 name = "shyuuhei-hyprland"
@@ -295,7 +234,7 @@ moment a file enters the bundle after `collect`, and it must not be the hole in 
 and has no ledger — which makes it exactly `git clone` plus `cp -r`. Two flags, a
 manifest value, a command and a whole write-back diff engine existed to serve it. They
 are gone. `mode` now has two values: `symlink` (default) and `external`
-([manifest.md](./manifest.md)); the first is *how dotpack places files*, the second is
+([manifest.md](../spec/manifest.md)); the first is *how dotpack places files*, the second is
 *dotpack does not place files*.
 
 ---

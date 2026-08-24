@@ -176,7 +176,7 @@ accident. `docs/real-world.md` F20.
 `neovim` and `adwaita-icon-theme` were declared as the shell, editor and icon theme and
 then never installed — and `shell = "fish"` while upstream's installer `chsh`es to zsh is
 the one that actually bites. All three are in `[packages]` now. This is the
-`components[].pkg` warning in `docs/manifest.md` doing its job on the very first bundle
+`components[].pkg` warning in `spec/manifest.md` doing its job on the very first bundle
 written in the format; the manifest now produces **zero** warnings.
 
 ---

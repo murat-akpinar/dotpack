@@ -131,9 +131,11 @@ into inventing meaningless labels.
 
 ---
 
-## `dotpack post`
+## Rendering the list — `dotpack post`
 
-This command is the reason the standard gets adopted.
+The command belongs to the reference implementation; **the rules below are the standard's**,
+and any tool that follows them produces the same text. This is the part that gets the
+format adopted.
 
 ```
 $ dotpack post my-i3
@@ -184,7 +186,7 @@ error, the text is on stdout either way.
 
 An earlier version of this block title-cased some values and not others (`Rofi` but
 `polybar`), dropped `wallpaper` and `calculator`, and used neither the dictionary order nor
-any other. That is fine in a mock-up and fatal in a spec: [TODO.md](../TODO.md) M3 is
+any other. That is fine in a mock-up and fatal in a spec: TODO.md M3 is
 judged by whether the `[components]` block above renders to exactly this.
 
 The same renderer writes the bundle's own `README.md` during `collect`: the markdown list,
@@ -237,7 +239,7 @@ A matching package is assigned its role, the rest stay role-less. The name writt
 warns about its own output is broken. The suffix comes off for *matching* only, and only
 `-git` / `-bin` — a looser rule pulls `zen-browser` into `zen`. The `gtk_theme`,
 `icons`, `cursor` and `font_*` roles come from the config scan (`gtk-3.0/settings.ini`,
-`fc-match` — [design.md §5.2](./design.md)), and **they win**: the table only fills roles
+`fc-match` — design.md §5.2), and **they win**: the table only fills roles
 the scan left empty, because a name read out of the config is better evidence than a name
 in a package list. The user corrects them in the TUI.
 

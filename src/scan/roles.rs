@@ -1,5 +1,5 @@
 //! package → role. Fills in `components`, which install logic never reads: it is the
-//! r/unixporn list, moved into the manifest (docs/standard.md).
+//! r/unixporn list, moved into the manifest (spec/components.md).
 //!
 //! A hand-written table, deliberately not exhaustive. Nobody dies if a role stays empty —
 //! the package is installed either way.

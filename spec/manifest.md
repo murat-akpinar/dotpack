@@ -92,7 +92,7 @@ dest = "~/Pictures/wallpapers"
 | `preview` | string | no | — | Image path relative to the bundle root. Its name is shown in the generated README and in the TUI detail panel. |
 
 `requires` is a real need: the rice that was examined requires "Hyprland ≥ 0.56" and its
-installer does a version comparison ([real-world.md](./real-world.md) F7).
+installer does a version comparison (real-world.md F7).
 
 A `wm` mismatch **does not block** the install, it warns. Someone may want to install a
 sway config on hyprland (to get the files); that is their call.
@@ -123,7 +123,7 @@ A role → component map. **Entirely optional**, does not affect installation, p
 descriptive. The machine-readable form of the "full setup" list people write as prose on
 r/unixporn.
 
-Full dictionary, spellings and the `dotpack post` command: [standard.md](./standard.md)
+Full dictionary, spellings and the `dotpack post` command: [components.md](./components.md)
 
 The short form is the package name (`shell = "zsh"`); the long form carries the `pkg`
 `name` `theme` `from` `version` `path` `url` `note` fields.
@@ -133,7 +133,7 @@ error.** Install logic looks only at `packages`.
 
 **Fonts, themes and cursors are components with a preference order.** `pkg` first — most
 hand-installed Nerd Fonts turn out to exist in the repos and `collect` finds them with
-`pacman -F` ([design.md §5.2](./design.md)). If no package ships it, the files go into
+`pacman -F` (design.md §5.2). If no package ships it, the files go into
 `local/share/fonts/` and the component carries no `pkg` at all. `url` is the last resort
 and means one thing only: **"install this yourself"** — it is printed in the summary as a
 manual step and is never fetched.
@@ -142,7 +142,7 @@ manual step and is never fetched.
 
 | Field | Type | Default | Note |
 |---|---|---|---|
-| `mode` | enum | `"symlink"` | `symlink` — dotpack places the files. `external` — dotpack places **nothing**, another tool does. There is no third value: `copy` was removed ([design.md §4.4](./design.md)), and with it the `--copy` / `--symlink` flags. |
+| `mode` | enum | `"symlink"` | `symlink` — the installer places the files. `external` — the installer places **nothing**, another tool does. There is no third value: `copy` was removed (design.md §4.4), and with it the `--copy` / `--symlink` flags. |
 | `ignore` | string[] | the list below | Globs relative to the bundle root. **Collect-time only:** a matching path is never written into the bundle. It has no meaning at install time — `~/.config/hypr` is one directory link, there is no per-file decision left to make. A written list is **added to** the default, it does not replace it. |
 | `assets` | object[] | `[]` | Destinations outside the convention. `{ "src": "...", "dest": "..." }`. `~` is expanded inside `dest`. **Assets are copied, never linked**, and a switch does not remove them — `dest` is usually a directory the user owns (`~/Pictures/wallpapers`), and adopting it into a bundle would be an unpleasant surprise. An existing file of the same name is not overwritten; it is reported. |
 
@@ -159,7 +159,7 @@ at is the whole reason the directory exists.
 
 In the two repos that were examined: 21 MB of 76.5 MB was a promo video, 29 MB of 273 MB
 was VS Code state. Both are pure dead weight at install time
-([real-world.md](./real-world.md) F8, F16).
+(real-world.md F8, F16).
 
 **A generated file is only safe to `ignore` if its reader tolerates absence.** That is
 the whole test, and it is not a property of the file — it is a property of the line that
@@ -176,11 +176,11 @@ one of them can go:
 there is no install-time decision left to make. Same for machine-specific files —
 `ignore`-ing `monitors.conf` does not stop `hyprland.conf` from sourcing it. Ship it with
 your values and say "edit this" in the README, or drop the `source` line too.
-[design.md §7](./design.md) spells the two options out; the §5.1 reference check reports
+design.md §7 spells the two options out; the §5.1 reference check reports
 the mistake at collect time rather than on the receiver's screen.
 
 There is **no** file list. What goes where comes from the directory layout
-([design.md §2](./design.md)):
+([the layout](./README.md)):
 
 ```
 config/<X>  → ~/.config/<X>
@@ -198,25 +198,26 @@ assets/<X>  → only if declared in the "assets" field
 name = "brozi-i3"
 wm   = "i3"
 mode = "external"
-managed_by = "chezmoi"        # informational only; dotpack does not call this tool
+managed_by = "chezmoi"        # informational only; the installer never calls this tool
 
 [packages]
 pacman = ["i3-wm", "polybar", "picom", "kitty", "zsh"]
 ```
 
-In `external` mode, `dotpack use` **installs the packages, shows the roles, and does not
+In `external` mode an installer **installs the packages, shows the roles, and does not
 touch files.** The user runs `chezmoi apply` themselves. With no links to list, the role
 list *is* the plan, and the line naming `managed_by` appears twice: once in the plan, once
 in the summary after the packages are in. The bundle's own tree is not read either — a
 `dot_config/…` path resolves against chezmoi's layout, not ours, so the §5.1 reference
 check stays out of it.
 
-`dotpack collect --external --out <repo>` writes exactly this file into a repo you already
-keep, and fills `managed_by` in from that repo's markers.
+A collector writes exactly this file into a repo you already keep and fills `managed_by`
+in from that repo's markers — `dotpack collect --external --out <repo>` in the reference
+implementation.
 
 This is not a fallback plan, it is **the way the standard spreads.** Adding one file to an
 existing chezmoi repo is far lower friction than migrating that repo to our layout. The
-format has to make sense without our tool — [standard.md](./standard.md).
+format has to make sense without our tool — [components.md](./components.md).
 
 ### services
 
@@ -247,7 +248,7 @@ post_install = "hooks/post-install.sh"
   damage without root too.
 - **They run on the bundle's first activation only.** The ledger remembers; `use A` →
   `use B` → `use A` does not run them a second time. Real hooks append to files
-  ([real-world.md](./real-world.md) F4) and appending twice is not undoable. `--run-hooks`
+  (real-world.md F4) and appending twice is not undoable. `--run-hooks`
   forces a rerun.
 - Can be skipped entirely with `--no-hooks`.
 - Working directory is the bundle root. Environment variables: `DP_BUNDLE_DIR`, `DP_MODE`.
@@ -278,7 +279,7 @@ Warning (installation continues):
   from the bundle, so there every correct glob would match nothing
 - a duplicate name in a package list
 - a `source` / `include` / `@import` inside a shipped config points at a file the bundle
-  does not ship ([design.md §5.1](./design.md)) — the single most common way a bundle
+  does not ship (design.md §5.1) — the single most common way a bundle
   installs and then does not work
 - `requires` cannot be compared: `pacman -Q` prints `1:0.56.0-2`, so the epoch and pkgrel
   are stripped and the rest compared **field by field as integers**. `0.9` vs `0.56` is

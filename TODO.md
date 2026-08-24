@@ -135,7 +135,7 @@ Not usable alone; everything depends on it.
 - [x] `paths.rs` — HOME / store / state / backups, the **only** place `env::var("HOME")` appears
 - [x] `manifest.rs` — `dotfiles.toml` serde types, read/write
 - [x] `manifest.rs` — `components`, short and long (inline table) forms
-- [x] `manifest.rs` — validation: hard error / warning split (`docs/manifest.md`)
+- [x] `manifest.rs` — validation: hard error / warning split (`spec/manifest.md`)
 - [x] `manifest.rs` — warn if a `components[].pkg` is missing from `packages`
 - [x] `bundle.rs` — path mapping (`config/` → `~/.config`, `home/`, `local/`, `assets/`)
 - [x] `bundle.rs` — **the link depth rule** for `config/`: stop at the first directory containing files
@@ -145,7 +145,7 @@ Not usable alone; everything depends on it.
 - [x] The default ignore list, embedded
 
 **Done means:** a hand-written `dotfiles.toml` survives a read → write round trip
-unchanged; every invalid example in `docs/manifest.md` is rejected at the right severity.
+unchanged; every invalid example in `spec/manifest.md` is rejected at the right severity.
 
 ✅ Done. `example/dotfiles.toml` round-trips, the depth rule collapses its 34 files into 3
 directory links, and `cargo test` covers both. Comments are not preserved by the round
@@ -319,7 +319,7 @@ it, filling in the format becomes a gain rather than a chore.
 - [x] `post.rs` — copy to clipboard (`wl-copy` / `xclip`, whichever exists)
 - [x] The same renderer writes `README.md` during `collect`
 
-**Done means:** the `[components]` block in `docs/standard.md` produces that document's
+**Done means:** the `[components]` block in `spec/components.md` produces that document's
 list exactly.
 
 ✅ Done, and *exactly* is the word: the acceptance sentence is a `#[test]` comparing
@@ -329,7 +329,7 @@ list exactly.
 found that. The rules table said what a value looks like and in what order roles come, but
 not why `**Bar:**` sits alone while `**Terminal:**` and `**Shell:**` share a line. One
 rule explains all eleven breaks in the block: **fill greedily to 80 columns.** It is in
-`standard.md` now — a spec whose own example cannot be reproduced from it is not a spec.
+`components.md` now — a spec whose own example cannot be reproduced from it is not a spec.
 
 Three smaller calls, recorded because they are user-visible:
 
@@ -503,7 +503,7 @@ one outcome is a keymap that has to be remembered twice.
 - [x] Test on sway and i3 (not just hyprland)
 - [x] Test on a clean user with no helper installed
 - [ ] Publish an example bundle repo — the reference people will look at
-- [ ] Publish the spec as a document separate from the tool (`docs/standard.md` + `manifest.md`)
+- [x] Publish the spec as a document separate from the tool — `spec/`
 
 ### The second machine
 
@@ -543,6 +543,26 @@ so that they can.
 extraction, `set $mod`/`bindsym`/`bar { status_command }` all read correctly. i3 itself is
 not installed on that box, so `detect()` and `i3-msg reload` were not exercised against a
 running i3. Two lines in one table; named rather than claimed.
+
+### The spec, split out
+
+`spec/` is the format: layout and link rules, the manifest schema, the role vocabulary.
+Three documents, every link inside the directory, no dependency on anything in `docs/` —
+copy the directory into its own repo and it still reads. `docs/` is what is left: the
+tool's own thinking, and nothing in it is normative.
+
+- **The layout moved out of design.md §2**, which is where it had always been. A format
+  called "The Shared Format" living in a section of the implementation's design notes was
+  the whole problem in one line. §2 now points at the spec and keeps only the rationale
+  that is genuinely this tool's.
+- **`spec/README.md` is new, and it is the part that makes it a standard**: seven things an
+  installer must do — back up before overwriting, preserve exec bits, run hooks once and
+  show them first, never fetch a `url`, never uninstall, `ignore` is collect-time only, a
+  directory without `dotfiles.toml` is not a bundle. Those are the rules an *author* is
+  entitled to assume, whoever installs their bundle.
+- **Normative sentences stopped naming the tool.** "dotpack places the files" became "the
+  installer places the files". The reference implementation is named twice and both times
+  as an example.
 
 **No AUR helper is a normal machine, not a broken one.** It gets the repo packages, is told
 which names were skipped and why, and is never offered a bootstrap — `install.sh` installs

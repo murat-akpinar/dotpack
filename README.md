@@ -74,15 +74,26 @@ broken: **every referenced file has to ship** — a `kitty.conf` whose
 **fonts have to actually arrive**, resolved to a package where one exists and shipped in
 the bundle where none does, with `fc-cache` run afterwards.
 
+## The format
+
+`spec/` is the bundle format, and it is written to be read without this tool — one
+directory, three documents, no dependency on anything in `docs/`.
+
+| | |
+|---|---|
+| [spec/README.md](spec/README.md) | Layout, where each file lands, and what an installer must do |
+| [spec/manifest.md](spec/manifest.md) | `dotfiles.toml` — every field and the validation rules |
+| [spec/components.md](spec/components.md) | The role vocabulary: `bar`, `terminal`, `icons`, `font_system`… |
+
 ## Docs
+
+The tool's own notes. Nothing here is normative.
 
 | | |
 |---|---|
 | [docs/research.md](docs/research.md) | Prior art, gap analysis, verified techniques |
-| [docs/standard.md](docs/standard.md) | The `components` standard and `dotpack post` |
 | [docs/real-world.md](docs/real-world.md) | Teardown of a real shared rice, and what it changed |
-| [docs/design.md](docs/design.md) | Directory format, flows, dependency discovery, Rust layout |
-| [docs/manifest.md](docs/manifest.md) | `dotfiles.toml` full schema reference |
+| [docs/design.md](docs/design.md) | Flows, dependency discovery, Rust layout |
 | [docs/profiles.md](docs/profiles.md) | Local store, rice switching, `github:` syntax |
 | [docs/tui.md](docs/tui.md) | Screens, keymap, ratatui decisions |
 | [example/](example/) | A real rice as a bundle — the 1898-line installer it replaces |

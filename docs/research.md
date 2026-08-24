@@ -130,7 +130,7 @@ scratch" with "weed 5 lines out of the 45 suggested".
 
 > **Note (added later):** the draft below was written as JSON, under the name
 > `dotfile.json`. The final format is `dotfiles.toml` — the rationale is at the end of
-> [manifest.md](./manifest.md). This section is left as-is, as a research record.
+> [manifest.md](../spec/manifest.md). This section is left as-is, as a research record.
 
 Name: `dotfile.json` (or `dottrace.json`). One file, human-readable, diffable.
 

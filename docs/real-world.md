@@ -132,7 +132,7 @@ itself — nobody wants them removed, but at install time they are **completely 
 
 `preview/` itself is deliberately **not** on that list, though it looks like the obvious
 entry: the `preview` field points a bundle at one screenshot inside it
-([manifest.md](./manifest.md)). The media extensions remove the 21 MB and leave the
+([manifest.md](../spec/manifest.md)). The media extensions remove the 21 MB and leave the
 screenshot, which is the part worth keeping.
 
 ### F9 — Design decisions that were confirmed
@@ -198,7 +198,7 @@ File manager: yazi              Editor: Lazyvim
 ```
 
 This is a manifest — just written as prose and in the wrong place. **The standard we want
-to set is the machine-readable form of this list.** Details: [standard.md](./standard.md)
+to set is the machine-readable form of this list.** Details: [components.md](../spec/components.md)
 
 Three things in the list do not correspond to packages: "Calculator: Here", "Search applet:
 my own version of this project", "Autotiling script: Here" — all GitHub links. Our stance:

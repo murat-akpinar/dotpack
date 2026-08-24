@@ -59,7 +59,7 @@ pub fn reload(wm: Wm, notes: &mut Vec<String>) {
 ///
 /// A non-zero exit is a warning and nothing more — not even for `pre_install`, which runs
 /// before the packages: a hook that could not add a repo is not a reason to abandon a
-/// switch that has not started ([manifest.md](../docs/manifest.md) § hooks).
+/// switch that has not started ([manifest.md](../spec/manifest.md) § hooks).
 pub fn hook(root: &Path, relative: &str, mode: Mode, notes: &mut Vec<String>) {
     let script = root.join(relative);
     // Rices ship executable scripts and their shebang is the right interpreter; `sh` is

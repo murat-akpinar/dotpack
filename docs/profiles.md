@@ -141,7 +141,7 @@ The user's own config is never lost.
 deactivation they are removed **only if empty** — the user may have put their own files
 in there since.
 
-`hooks_ran`: hooks are a first-activation thing ([manifest.md](./manifest.md)). This list
+`hooks_ran`: hooks are a first-activation thing ([manifest.md](../spec/manifest.md)). This list
 is the memory that makes `use A` → `use B` → `use A` safe; without it, every hook that
 appends to a file ([real-world.md](./real-world.md) F4) corrupts a little more on each
 round trip.

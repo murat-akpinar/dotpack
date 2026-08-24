@@ -12,10 +12,12 @@ Rust + ratatui · Arch only · hyprland / sway / i3.
 **M0–M6 are done: switching, `collect`, `post` + the generated README, sharing —
 `use github:user/repo` clones, plans, warns and runs the bundle's hooks — `external` mode,
 and the TUI.** `dotpack` with no arguments opens `src/tui/`; every screen calls the same
-function the CLI calls. What is left is M7, release prep: sway and i3, a clean user with no
-AUR helper, and publishing the example bundle. Read
-`docs/design.md` before proposing any structure, and `docs/real-world.md` for what
-real shared rices actually look like (several design rules come from that teardown).
+function the CLI calls. M7 is in progress: sway, i3 and a helper-less machine were tested
+on a second box, and the format now lives in `spec/` on its own — what is left is
+publishing the example bundle. **`spec/` is the format and is normative; `docs/` is the
+tool's own thinking.** Read `docs/design.md` before proposing any structure, and
+`docs/real-world.md` for what real shared rices actually look like (several design rules
+come from that teardown).
 `TODO.md` is the running score: each finished milestone carries a note on what it cost and
 what it got wrong.
 
@@ -28,7 +30,7 @@ commit messages. The user writes in Turkish; the files do not.
 - **store** — `~/.local/share/dotpack/bundles/`, where bundles live locally.
 - **active** — the one bundle whose symlinks are currently in place. Exactly one, never partial.
 - **external mode** — `mode = "external"`: the bundle ships no files, only `packages` + `components`. Files stay under chezmoi/stow. This is a v1 feature and the format's main distribution path, not a fallback.
-- **components** — optional role→component map in `dotfiles.toml` (`bar`, `terminal`, `icons`…). Descriptive only; install logic reads `packages`. This is the standard the project is trying to set — see `docs/standard.md`.
+- **components** — optional role→component map in `dotfiles.toml` (`bar`, `terminal`, `icons`…). Descriptive only; install logic reads `packages`. This is the standard the project is trying to set — see `spec/components.md`.
 - **link ledger** — `~/.local/state/dotpack/state.toml`, the **only** state file: active and previous bundle, every link placed, every directory created to place it, and which bundles' hooks have already run. Switching cleanly depends entirely on this file being accurate.
 - **detached link** — an application deleted our symlink and wrote a real file in its place (GTK, VS Code). The only thing `sync` exists for.
 
