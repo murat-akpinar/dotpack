@@ -9,6 +9,11 @@
 - *(scan)* The secret scan, and ls runs it on the active bundle ([2f74e26](https://github.com/murat-akpinar/dotpack/commit/2f74e268359f560b0e7aa12f7676284ec094f368)) — Both layers from design.md §6. Shell history is in the deny-list because a public repo that was examined shipped `private_dot_histfile` — chezmoi's `private_` prefix means chmod 600, not "not published".
 - *(scan)* WM tables and the command → package chain ([5adbdd2](https://github.com/murat-akpinar/dotpack/commit/5adbdd22b861d57d87386f559afb04a166faeeab)) — deps.rs walks design.md §5's chain and bends where the docs say it bends: a `-Qoq` answer that is not the command name (noctalia-qs providing quickshell) gives way to the portable name when a repo has one, and a file no package owns falls through to `pacman -Si <command>` before `pacman -F <basename>`. That ordering matters on this machine: there is no files database here, and /usr/local/bin/starship still resolves to extra/starship.
 - *(collect)* The whole scan, and the bundle it writes ([42fc352](https://github.com/murat-akpinar/dotpack/commit/42fc352c4ab944d9f68c1d012e6994142188bd4d)) — M2. `dotpack collect` reads the machine and `apply::write::write_bundle()` writes the result, so the one-writer invariant holds from the first bundle ever created rather than from the second.
+- *(post)* Components → the shareable list, and the bundle's README ([2919bc5](https://github.com/murat-akpinar/dotpack/commit/2919bc5197095208bd7bafe9ff5d80f1cfab3437)) — M3, the adoption lever. `dotpack post [name|path]` renders `[components]` as the list every r/unixporn comment already carries and copies it to the clipboard; `--format reddit|markdown|plain`. `collect` writes the same list into the bundle's README, once, and never regenerates it.
+
+### 🐛 Bug Fixes
+
+- *(collect)* A ticked directory is evidence for its own package ([18c368e](https://github.com/murat-akpinar/dotpack/commit/18c368ebca718ef8dfb443833adde29c2d23df60)) — `collect kitty` wrote a bundle with an empty `[packages]`: every suggestion came from a command a config *launches*, and nothing in `kitty.conf` launches kitty. The bundle shipped a terminal's config and never installed the terminal.
 
 ### 📚 Documentation
 
