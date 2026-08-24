@@ -28,6 +28,10 @@ services = []
 # sources it.
 ignore = [
   "config/hypr/scripts/*.log",
+  # fish rewrites this one itself, and the copy on this machine carries
+  # `fish_user_paths:/home/<author>/.cargo/bin` — a generated file naming the author's
+  # home with no regenerator, which is the rule finding 11 in the README produced.
+  "config/fish/fish_variables",
   # The weather API key. The only file here kept out for secrecy rather than for weight:
   # the calendar reads it, the bundle must not carry it.
   "config/hypr/scripts/quickshell/calendar/.env",

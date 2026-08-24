@@ -368,6 +368,30 @@ author's actual rice that had never left the machine. The reference check reads 
 like any other and its count did not move: every `~/…` path inside it resolves to
 something the bundle ships.
 
+**17: the rice is not only the WM, and half of it was not in the bundle.** Looking at the
+installed result on the other machine: fastfetch printed its default output, the shell was
+a bare fish the hook had just switched into, and the editor was stock. The manifest names
+all three — `shell = "fish"`, `fetch = "fastfetch"`, `editor = { pkg = "neovim" }` — so
+the packages installed and the roles were declared, and **not one of their config
+directories travelled**. `collect` selects the WM's own directory and the ones its config
+points at, and nothing in `hyprland.conf` points at `~/.config/fish`.
+
+`config/fish`, `config/fastfetch`, `config/nvim` and `config/starship.toml` ship now — 6 MB
+in total, and `starship.toml` is the first file that sits directly in `config/`, which the
+depth rule links as a file rather than promoting `~/.config` into one link. Shipping nvim
+also closed one of finding 14's thirteen: `matugen_reload.sh` writes
+`~/.config/nvim/matugen_colors.lua`, and that file is in the bundle now.
+
+Two things came out of copying them in by hand rather than through `collect`:
+
+- **`nvim/.git`** — the NvChad starter is a clone, and `cp -a` brought its whole object
+  store. `collect` would not have: `.git/` is the first entry in the default ignore list.
+- **`fish/fish_variables`** carried `fish_user_paths:/home/<author>/.cargo/bin`. fish
+  rewrites that file itself, so it is finding 11's rule exactly — a generated file naming
+  the author's home with no regenerator — and it is in `ignore` now. Worth naming that
+  **nothing in the tool caught it**: the reference check looks for `~/`, `$HOME/` and
+  `$(dirname …)`, and a literal `/home/<author>/…` is none of those.
+
 ## The hook
 
 `hooks/post-install.sh` is the whole of what a manifest is not allowed to do: run the
