@@ -310,6 +310,12 @@ Additionally: commands inside `~/.config/*/scripts/*.sh` (the user's own scripts
 dependencies too — this machine has **14** under `hypr/scripts/`, all of them executable,
 which is where invariant 9 about mode bits comes from).
 
+**And the selected directory names themselves**, through the same chain: `~/.config/kitty`
+is in the bundle because the user runs kitty, but nothing in `kitty.conf` launches it. Left
+out, `collect kitty` writes a bundle that ships a terminal's config and never installs the
+terminal — found by running exactly that. The name has to resolve to a real binary, so
+`~/.config/hypr` suggests nothing and hyprland still comes from the WM field.
+
 ### 5.1 Reference integrity — every referenced file must ship
 
 Config files reference other config files, and **this is not a WM-only habit.** kitty:

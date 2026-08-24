@@ -97,8 +97,13 @@ pub fn collect(
     }
 
     // --- the scans, all off the same file set ---
-    let (suggestions, package_warnings) = deps::scan(&sources, wm);
+    let (mut suggestions, package_warnings) = deps::scan(&sources, wm);
     warnings.extend(package_warnings);
+    for extra in deps::from_selection(&selection, &mut warnings) {
+        if !suggestions.iter().any(|s| s.package == extra.package) {
+            suggestions.push(extra);
+        }
+    }
     let (found_fonts, font_warnings) = fonts::scan(&sources);
     warnings.extend(font_warnings);
     let dangling = refs::scan(&sources)

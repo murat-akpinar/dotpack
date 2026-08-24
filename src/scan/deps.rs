@@ -125,6 +125,29 @@ pub fn scan(files: &[PathBuf], wm: Wm) -> (Vec<Suggestion>, Vec<String>) {
     (suggestions, warnings)
 }
 
+/// A ticked directory is evidence on its own. Nothing in `kitty.conf` launches kitty, so
+/// without this `collect kitty` writes a bundle that ships a config for a program it never
+/// installs — and the receiver gets the config, not the terminal.
+///
+/// Cheap and safe because the directory was *chosen*: the name has to resolve to a real
+/// binary through the same chain [`scan`] uses, so `~/.config/hypr` suggests nothing.
+pub fn from_selection(directories: &[String], warnings: &mut Vec<String>) -> Vec<Suggestion> {
+    let foreign = pkg::foreign();
+    directories
+        .iter()
+        .filter_map(|name| {
+            let path = pkg::which(name)?;
+            let (package, note) = resolve(name, &path, warnings)?;
+            (!NOISE.contains(&package.as_str())).then(|| Suggestion {
+                aur: foreign.contains(&package),
+                package,
+                reason: format!("~/.config/{name} is in the bundle"),
+                note,
+            })
+        })
+        .collect()
+}
+
 /// The chain, and the two ways it bends:
 ///
 /// - `-Qoq` can answer with a **provider**: `/usr/bin/quickshell` is owned by
@@ -318,6 +341,18 @@ mod tests {
         assert_eq!(hypr("exec-once = swayosd-server"), ["swayosd-server"]);
         assert!(hypr("# exec-once = disabled").is_empty());
         assert!(hypr("general { gaps_in = 5 }").is_empty());
+    }
+
+    #[test]
+    fn a_ticked_directory_is_evidence() {
+        let mut warnings = Vec::new();
+        assert!(from_selection(&["not-a-real-command".to_string()], &mut warnings).is_empty());
+        // The chain is the machine's, so the assertion only holds where kitty is one.
+        if pkg::which("kitty").is_some() {
+            let found = from_selection(&["kitty".to_string()], &mut warnings);
+            assert_eq!(found[0].package, "kitty");
+            assert_eq!(found[0].reason, "~/.config/kitty is in the bundle");
+        }
     }
 
     #[test]

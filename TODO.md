@@ -266,6 +266,14 @@ writes 176 files and 38 packages; every package carries the line that suggested 
   names it. It lives in fish's prompt, and `fish/` is not part of the hyprland scan's
   pre-tick. Ticking it would find it.
 
+**A false *negative* turned up later, while M3 was being tested:** `collect kitty` produced
+a bundle with an empty `[packages]`. Every suggestion came from a command a config
+*launches*, and nothing in `kitty.conf` launches kitty. The selected directory names are
+now run through the same chain (`scan/deps.rs::from_selection`), which costs one `which`
+per ticked directory and closes the case where the bundle ships a config for a program it
+does not install. The default selection barely moves — `hypr` is not a binary — so the M2
+score above stands.
+
 Five false positives were found by running it and reading every line, not by reasoning:
 `~/.config/zen` (2252 files, pre-ticked because `zen-browser` starts with `zen`),
 `texinfo` (from `info=$(bluetoothctl …)`, where the command is what follows `$(`),
