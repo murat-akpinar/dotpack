@@ -37,3 +37,7 @@
 - Resolve the contradictions a full audit turned up ([3fb8985](https://github.com/murat-akpinar/dotpack/commit/3fb898575631ac1209dc392f814e117cd2ed15a3)) — Nine passes over the docs, fixing what each pass found and re-reading after. Forty-six items; the ones that changed a rule rather than a number:
 - Answer the four M1 decisions and split apply into a directory ([2405c37](https://github.com/murat-akpinar/dotpack/commit/2405c379ed4741e27d217bcf63b7219396bc8099)) — Phase 0's remaining M1 blockers are decided, so nothing on that list stands between here and code:
 - *(spec)* The format, in its own directory ([2bd382c](https://github.com/murat-akpinar/dotpack/commit/2bd382ca0858a50c516d524219765f11c625033b)) — `spec/` is the bundle format and is normative; `docs/` is the tool's own thinking. Three documents, every link inside the directory, no dependency on anything in docs/ — copy it into its own repo and it still reads.
+
+### 🧪 Testing
+
+- *(bundle)* The link list now has a file in it ([064e68f](https://github.com/murat-akpinar/dotpack/commit/064e68f43b7b69696a3804ede979b5d1f6d30283)) — `config/starship.toml` sits directly in `config/`, so the depth rule links it as a file — the case the rule exists to get right, and the example bundle is the only fixture that had no loose file to prove it with until now. The assertion says so rather than `all(|l| l.dir)`.
