@@ -345,14 +345,31 @@ mod tests {
             targets,
             [
                 "/tmp/dp-home/.config/cava",
+                "/tmp/dp-home/.config/fastfetch",
+                "/tmp/dp-home/.config/fish",
                 "/tmp/dp-home/.config/hypr",
                 "/tmp/dp-home/.config/kitty",
                 "/tmp/dp-home/.config/matugen",
+                "/tmp/dp-home/.config/nvim",
+                "/tmp/dp-home/.config/starship.toml",
                 "/tmp/dp-home/.config/swayosd"
             ]
         );
-        assert!(links.iter().all(|l| l.dir));
-        assert_eq!(links[1].source, root.join("config/hypr"));
+        // ...and `starship.toml`, which sits directly in `config/`, is a **file** link.
+        // The rule must never promote `~/.config` itself into one directory link, and
+        // this bundle is the only fixture that has a loose file to prove it with.
+        assert!(
+            links
+                .iter()
+                .all(|l| l.dir == !l.target.ends_with("starship.toml"))
+        );
+        // By name, not by index: the bundle grew four more directories and an index is
+        // the wrong way to say "the hypr one".
+        let hypr = links
+            .iter()
+            .find(|l| l.target.ends_with("hypr"))
+            .expect("the hypr link");
+        assert_eq!(hypr.source, root.join("config/hypr"));
     }
 
     #[test]
