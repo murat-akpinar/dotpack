@@ -235,8 +235,9 @@ post_install = "hooks/post-install.sh"
 ```
 
 - Path relative to the bundle root. A path escaping the bundle (`../`, an absolute path) is **rejected**.
-- **The contents are shown in the TUI before** it runs, and the user approves. A script from
-  someone else's repo can do damage without root too.
+- **The contents are shown before it runs**, and the user approves — the whole script,
+  in the install plan, above the confirmation. A script from someone else's repo can do
+  damage without root too.
 - **They run on the bundle's first activation only.** The ledger remembers; `use A` →
   `use B` → `use A` does not run them a second time. Real hooks append to files
   ([real-world.md](./real-world.md) F4) and appending twice is not undoable. `--run-hooks`

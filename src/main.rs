@@ -5,6 +5,7 @@ mod paths;
 mod pkg;
 mod post;
 mod scan;
+mod source;
 
 use std::io::Write;
 use std::path::Path;
@@ -53,11 +54,26 @@ enum Command {
         yes: bool,
     },
     /// Download a bundle into the local store, without installing it
-    Add { source: String },
+    Add {
+        /// `github:user/repo[/branch]`, `gitlab:…`, a git URL, or a local path
+        source: String,
+        /// Store it under this name instead of the manifest's
+        #[arg(long = "as")]
+        as_name: Option<String>,
+    },
     /// Make a bundle active — the rice switch. `-` returns to the previous one
     Use {
-        /// A name in the store, a local path, or `-`
+        /// A name in the store, a source (`github:user/repo`), a local path, or `-`
         target: String,
+        /// Store it under this name instead of the manifest's
+        #[arg(long = "as")]
+        as_name: Option<String>,
+        /// Do not run the bundle's hooks at all
+        #[arg(long)]
+        no_hooks: bool,
+        /// Run them even though they have already run once
+        #[arg(long)]
+        run_hooks: bool,
         /// Skip the confirmation
         #[arg(short, long)]
         yes: bool,
@@ -83,7 +99,21 @@ enum Command {
 
 fn main() -> Result<()> {
     match Cli::parse().command {
-        Some(Command::Use { target, yes }) => use_bundle(&target, yes),
+        Some(Command::Use {
+            target,
+            as_name,
+            no_hooks,
+            run_hooks,
+            yes,
+        }) => use_bundle(
+            &target,
+            as_name.as_deref(),
+            apply::Options {
+                no_hooks,
+                run_hooks,
+            },
+            yes,
+        ),
         Some(Command::Ls) => list(),
         Some(Command::Sync { discard }) => {
             report(apply::sync(discard)?);
@@ -100,36 +130,50 @@ fn main() -> Result<()> {
             yes,
         }) => collect(&dirs, out, name, wm, &ignore, !no_git, yes),
         Some(Command::Post { name, format }) => post(name, format),
-        Some(Command::Add { .. }) => bail!("add: M4"),
+        Some(Command::Add { source, as_name }) => add(&source, as_name.as_deref()),
         None => bail!("the TUI is M6 — use a subcommand for now (`dotpack --help`)"),
     }
 }
 
 // --- use start ---
 
-fn use_bundle(target: &str, yes: bool) -> Result<()> {
+fn use_bundle(
+    target: &str,
+    as_name: Option<&str>,
+    options: apply::Options,
+    yes: bool,
+) -> Result<()> {
     if target == "-" {
-        return use_previous(yes);
+        return use_previous(options, yes);
     }
-    if let Some(prefix) = ["github:", "gitlab:", "https://", "http://", "git@"]
-        .iter()
-        .find(|p| target.starts_with(**p))
-    {
-        bail!("remote sources ({prefix}…) are M4 — add the bundle by path for now");
-    }
-
-    let name = if target.contains('/') || Path::new(target).exists() {
-        apply::link_into_store(Path::new(target))?
-    } else {
-        target.to_string()
-    };
-    activate(&Bundle::open(paths::store().join(&name))?, yes)
+    let name = into_store(&source::parse(target)?, as_name)?;
+    activate(&Bundle::open(paths::store().join(&name))?, options, yes)
 }
 
-fn use_previous(yes: bool) -> Result<()> {
+/// `add` is `use`'s first step on its own: the bundle lands in the store and nothing is
+/// activated.
+fn add(target: &str, as_name: Option<&str>) -> Result<()> {
+    let name = into_store(&source::parse(target)?, as_name)?;
+    println!("{name} — `dotpack use {name}` installs it");
+    Ok(())
+}
+
+/// Whatever the source, what comes back is a name in the store.
+fn into_store(source: &source::Source, as_name: Option<&str>) -> Result<String> {
+    match source {
+        source::Source::Git { url, branch } => apply::fetch::clone(url, branch.as_deref(), as_name),
+        source::Source::Local(path) => apply::link_into_store(path, as_name),
+        source::Source::Store(name) if paths::store().join(name).exists() => Ok(name.clone()),
+        source::Source::Store(name) => bail!(
+            "`{name}` is not in the store and is not a source — `github:user/repo`, a git URL or a path"
+        ),
+    }
+}
+
+fn use_previous(options: apply::Options, yes: bool) -> Result<()> {
     let ledger = Ledger::load()?;
     match ledger.previous {
-        Some(name) => activate(&Bundle::open(paths::store().join(&name))?, yes),
+        Some(name) => activate(&Bundle::open(paths::store().join(&name))?, options, yes),
         // The state before the first activation was "nothing placed", so that is where
         // going back with no previous bundle lands.
         None if ledger.active.is_some() => {
@@ -144,8 +188,8 @@ fn use_previous(yes: bool) -> Result<()> {
     }
 }
 
-fn activate(bundle: &Bundle, yes: bool) -> Result<()> {
-    let plan = apply::plan(bundle)?;
+fn activate(bundle: &Bundle, options: apply::Options, yes: bool) -> Result<()> {
+    let plan = apply::plan(bundle, options)?;
     show(&plan);
     // `enter` is never destructive: the plan is shown, and applying it is a second step.
     if !yes && !confirm("apply")? {
@@ -186,8 +230,13 @@ fn show(plan: &apply::Plan) {
             println!("  {:<9} {item}", if i == 0 { label } else { "" });
         }
     }
-    if plan.hooks_declared {
-        println!("  hooks     declared, not run (M4)");
+    // Invariant 5: a script from someone else's repo is read before it is approved, not
+    // after. The whole thing, indented — it is the last chance anybody has to see it.
+    for hook in &plan.hooks {
+        println!("  hook      {} ({})", hook.path, hook.when);
+        for line in hook.script.lines() {
+            println!("    │ {line}");
+        }
     }
 }
 

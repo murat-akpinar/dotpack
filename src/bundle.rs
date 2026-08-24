@@ -55,6 +55,23 @@ impl Bundle {
             .collect()
     }
 
+    /// Every shipped file paired with the path it will live at. Not the same list as
+    /// [`Self::links`]: that one stops at the depth rule's directory, this one is per
+    /// file, because a reference inside a file resolves against the file's own target.
+    pub fn shipped(&self) -> Result<Vec<(PathBuf, PathBuf)>> {
+        let mut out = Vec::new();
+        for (area, base) in [
+            ("config", paths::config()),
+            ("home", paths::home()),
+            ("local", paths::local()),
+        ] {
+            for rel in files_under(&self.root.join(area))? {
+                out.push((self.root.join(area).join(&rel), base.join(&rel)));
+            }
+        }
+        Ok(out)
+    }
+
     /// `assets` are **copied**, never linked, so they are not part of `links()`.
     ///
     /// ponytail: no caller yet. design.md §4.2's sequence has no step that copies them
@@ -162,7 +179,14 @@ pub fn store_list() -> Result<Vec<PathBuf>> {
     match std::fs::read_dir(paths::store()) {
         Ok(entries) => {
             for entry in entries {
-                bundles.push(entry?.path());
+                let path = entry?.path();
+                // `.fetching` is a clone in progress, or one that died halfway.
+                if !path
+                    .file_name()
+                    .is_some_and(|n| n.as_encoded_bytes()[0] == b'.')
+                {
+                    bundles.push(path);
+                }
             }
         }
         // Nothing has ever been added.

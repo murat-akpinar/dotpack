@@ -1,7 +1,7 @@
 # Work Plan
 
 The design is done (`docs/`). This file says in which order the code gets written, and
-what each milestone actually turned out to be worth. **M0–M3 are done**; M4 is next.
+what each milestone actually turned out to be worth. **M0–M4 are done**; M5 is next.
 
 **Ordering principle:** every milestone leaves behind **something usable on its own**. Not
 a half-finished layer, a working tool. When M1 is done it has to produce value for a single
@@ -37,7 +37,8 @@ One sentence, and every milestone below is judged against it:
 
 It is not reached at any single milestone — **M1** places the files and packages, **M4**
 handles the hooks that cover what a manifest may not do (root services, `chsh`). What the
-bundle still needs to contain for it to pass is listed in `example/README.md`.
+bundle still needs to contain for it to pass is listed in `example/README.md`, and after
+M4 the tool's own half is done: what is left is bundle content.
 
 ~13.5 weekends in total. **The tool works at the end of M1**, one weekend in — because
 `example/` is already a valid hand-written bundle and makes a perfect fixture. The old
@@ -337,22 +338,51 @@ command should do.
 
 ## M4 — Sharing · 2 weekends
 
-- [ ] Source resolution: `github:U/R[/branch]`, `gitlab:`, `https://`, local paths
-- [ ] `git clone --depth 1` (real repos are 75 MB+)
-- [ ] Parse `#variant`, say "not supported in v1"
-- [ ] Reject a repo without `dotfiles.toml` with a clear message — do not run a foreign `install.sh`
-- [ ] `requires` version check: strip epoch and pkgrel from `pacman -Q`, compare field by
+- [x] Source resolution: `github:U/R[/branch]`, `gitlab:`, `https://`, local paths
+- [x] `git clone --depth 1` (real repos are 75 MB+)
+- [x] Parse `#variant`, say "not supported in v1"
+- [x] Reject a repo without `dotfiles.toml` with a clear message — do not run a foreign `install.sh`
+- [x] `requires` version check: strip epoch and pkgrel from `pacman -Q`, compare field by
       field **as integers** (`0.9` vs `0.56`) — warn, do not block
-- [ ] `wm` mismatch — warn, do not block
-- [ ] Validation-time reference check on a foreign bundle (`scan/refs.rs`, no machine state)
-- [ ] Install plan: packages / files / services / hook / manual-step summary + confirmation
-- [ ] Manual steps: every `components` entry carrying a `url` is printed, never fetched
-- [ ] Hooks: **show the contents**, confirm, run with `DP_BUNDLE_DIR` / `DP_MODE`
-- [ ] Hooks run once per bundle — check and update `hooks_ran` in the ledger
-- [ ] `--yes`, `--no-hooks`, `--run-hooks`, `--as <name>`
-- [ ] Restore the terminal during package installation, let pacman's output stream
+- [x] `wm` mismatch — warn, do not block
+- [x] Validation-time reference check on a foreign bundle (`scan/refs.rs`, no machine state)
+- [x] Install plan: packages / files / services / hook / manual-step summary + confirmation
+- [x] Manual steps: every `components` entry carrying a `url` is printed, never fetched
+- [x] Hooks: **show the contents**, confirm, run with `DP_BUNDLE_DIR` / `DP_MODE`
+- [x] Hooks run once per bundle — check and update `hooks_ran` in the ledger
+- [x] `--yes`, `--no-hooks`, `--run-hooks`, `--as <name>`
+- → **moved to M6**: restoring the terminal around package installation. The CLI never
+      took it — pacman inherits stdio and streams on its own. It is the alternate screen
+      that has to be left and re-entered, and there is no alternate screen until the TUI
 
 **Done means:** `dotpack use github:<your-own-repo>` works on a clean user.
+
+✅ Done. `tests/switch.rs` clones a real repo over `file://` — everything above the
+transport is the same code, and a test that needs the network is a test that gets
+switched off.
+
+- **The plan is where M4 actually landed**, not the clone. `use <path>` gained twelve
+  lines of warning on `example/` the moment the reference check ran on the receiving
+  side: the eleven `scripts/quickshell/…` paths `example/README.md` documents as missing,
+  plus `$HOME/.zshrc`. The author saw those at collect time; now the receiver sees them
+  before anything is placed, which is the half that was missing.
+- **`refs::scan` needed a second path per file**, and that is the whole diff for the
+  check. A bundle's file sits in the store and its references resolve against where it
+  will be *installed*, so the scan takes `(read from, will live at)` pairs;
+  `bundle::shipped()` builds them and `scan()` passes the same path twice.
+- **The version comparison found its own first case on this machine.** `pacman -Q pacman`
+  answers `7.1.0.r9.g54d9411-1` — a `-git` build whose version genuinely cannot be
+  compared field by field, which is exactly the "cannot compare" warning
+  `manifest.md` describes. It is in the test as the case, not as a hypothetical.
+- **`--as` is a store directory name**, so it goes through the manifest's own
+  `[a-z0-9._-]+` rule (`manifest::valid_name`, now shared). `--as ../../evil` is a path
+  escape wearing a name, and `fetch` renames into that path.
+- **A half-finished clone must not become a store entry.** It lands as `.fetching` and is
+  only renamed once it has parsed as a bundle; `store_list()` skips dot-names so a clone
+  that died mid-way does not turn into a broken row in `ls`.
+
+`file://` was added to the source table for the test, and it is a real git transport —
+not a test-only branch in the code.
 
 ---
 
@@ -376,7 +406,7 @@ packages via `dotpack use` and touches no files.
 
 - [ ] Event loop, alternate screen, raw mode
 - [ ] `std::panic::set_hook` restores the terminal first
-- [ ] Leave/re-enter the terminal around package installation
+- [ ] Leave/re-enter the terminal around package installation (moved here from M4)
 - [ ] Worker thread + `mpsc` — scanning must not freeze the UI
 - [ ] Main screen: bundle list, active marker, detached + secret counters, detail panel
 - [ ] Switch plan screen, hook source with `h`

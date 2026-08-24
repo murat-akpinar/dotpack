@@ -4,6 +4,7 @@
 //! steps and profiles.md §3's ten-step switch stay readable as the code that runs them.
 
 pub mod backup;
+pub mod fetch;
 pub mod ledger;
 pub mod links;
 pub mod system;
@@ -32,7 +33,24 @@ pub struct Plan {
     /// `components` carrying a `url`: the user installs these by hand. Never fetched
     /// (invariant 11).
     pub manual: Vec<String>,
-    pub hooks_declared: bool,
+    /// The hooks that are actually going to run, in the order they run, with their source
+    /// — a script from someone else's repo is shown before it is approved (invariant 5).
+    pub hooks: Vec<Hook>,
+}
+
+pub struct Hook {
+    /// `pre_install` (before the packages) or `post_install` (after links and services).
+    pub when: &'static str,
+    pub path: String,
+    pub script: String,
+}
+
+/// The flags that change what a switch does rather than what it switches to.
+#[derive(Clone, Copy, Default)]
+pub struct Options {
+    pub no_hooks: bool,
+    /// Run them even though the ledger says they already have.
+    pub run_hooks: bool,
 }
 
 #[derive(Default)]
@@ -45,7 +63,7 @@ pub struct Summary {
 }
 
 /// Everything the plan screen needs, and nothing written yet.
-pub fn plan(bundle: &Bundle) -> Result<Plan> {
+pub fn plan(bundle: &Bundle, options: Options) -> Result<Plan> {
     let ledger = Ledger::load()?;
     let new = bundle.links()?;
     let (remove, place) = links::diff(&ledger.links, &new);
@@ -61,6 +79,11 @@ pub fn plan(bundle: &Bundle) -> Result<Plan> {
         None => Vec::new(),
     };
 
+    let mut warnings = bundle.manifest.validate()?;
+    warnings.extend(machine_warnings(bundle)?);
+    let (hooks, hook_warning) = hooks(bundle, &ledger, options);
+    warnings.extend(hook_warning);
+
     Ok(Plan {
         name: bundle.manifest.name.clone(),
         packages: pkg::plan(&bundle.manifest)?,
@@ -70,10 +93,88 @@ pub fn plan(bundle: &Bundle) -> Result<Plan> {
             .collect(),
         remove: remove.iter().map(|e| e.target.clone()).collect(),
         detached,
-        warnings: bundle.manifest.validate()?,
+        warnings,
         manual: manual_steps(bundle),
-        hooks_declared: bundle.manifest.hooks.is_some(),
+        hooks,
     })
+}
+
+/// What only this machine can say about a foreign bundle. None of it blocks: a sway
+/// config on hyprland, or a rice wanting a newer Hyprland, is still the user's call
+/// ([manifest.md](../docs/manifest.md)).
+fn machine_warnings(bundle: &Bundle) -> Result<Vec<String>> {
+    let mut warnings = Vec::new();
+
+    if let Some(running) = crate::scan::wm::detect()
+        && running != bundle.manifest.wm
+    {
+        warnings.push(format!(
+            "this bundle is for {} and {} is running — the files are placed, nothing reloads",
+            name(bundle.manifest.wm),
+            name(running)
+        ));
+    }
+    warnings.extend(pkg::requires_warnings(&bundle.manifest.requires));
+
+    // The reference check the author got at collect time, run again on the receiving
+    // side: shipping `kitty.conf` without the `catppuccin.conf` it includes installs a
+    // kitty that errors on every start (design.md §5.1).
+    let shipped = bundle.shipped()?;
+    for reference in crate::scan::refs::scan_at(&shipped) {
+        if !reference.dangling() {
+            continue;
+        }
+        warnings.push(format!(
+            "{}:{} points at {}, which the bundle does not ship",
+            reference
+                .from
+                .strip_prefix(&bundle.root)
+                .unwrap_or(&reference.from)
+                .display(),
+            reference.line,
+            reference.raw
+        ));
+    }
+    Ok(warnings)
+}
+
+fn name(wm: crate::manifest::Wm) -> String {
+    format!("{wm:?}").to_lowercase()
+}
+
+/// Hooks run on a bundle's **first activation only** (invariant 13). Real hooks append to
+/// files and appending twice is not undoable, so the ledger is what decides, not the
+/// presence of the field.
+fn hooks(bundle: &Bundle, ledger: &Ledger, options: Options) -> (Vec<Hook>, Option<String>) {
+    let Some(declared) = &bundle.manifest.hooks else {
+        return (Vec::new(), None);
+    };
+    if options.no_hooks {
+        return (Vec::new(), Some("hooks skipped (--no-hooks)".into()));
+    }
+    if ledger.hooks_ran.contains(&bundle.manifest.name) && !options.run_hooks {
+        return (
+            Vec::new(),
+            Some("this bundle's hooks have already run — `--run-hooks` runs them again".into()),
+        );
+    }
+
+    let mut hooks = Vec::new();
+    for (when, path) in [
+        ("pre_install", &declared.pre_install),
+        ("post_install", &declared.post_install),
+    ] {
+        let Some(path) = path else { continue };
+        hooks.push(Hook {
+            when,
+            path: path.clone(),
+            // Unreadable is not fatal here: the plan says so and `system::hook` reports
+            // the failure when it tries to run it.
+            script: std::fs::read_to_string(bundle.root.join(path))
+                .unwrap_or_else(|e| format!("<cannot be read: {e}>")),
+        });
+    }
+    (hooks, None)
 }
 
 /// profiles.md §3, `use B`. A first activation is the same sequence with an empty ledger.
@@ -82,15 +183,12 @@ pub fn switch(bundle: &Bundle, plan: Plan) -> Result<Summary> {
     let mut summary = Summary::default();
     let stamp = backup::stamp();
 
-    // 1. Hooks are M4. A bundle that declares one is told, not silently skipped.
-    if plan.hooks_declared {
-        summary
-            .notes
-            .push("this bundle declares hooks; running them is M4, so they were skipped".into());
-    }
+    // 1. pre_install, before the packages: a hook that adds a repo has to run before the
+    //    thing it exists to prepare for. The two hooks are not one step (design.md §4.2).
+    run_hooks(&plan, "pre_install", bundle, &mut summary.notes);
 
     // 2. Packages, before the links — a config for a program that is not installed yet is
-    //    harmless, and pre_install will need to run before this in M4.
+    //    harmless.
     summary.packages_failed = pkg::install(&plan.packages)?;
 
     // 3. The link diff.
@@ -118,6 +216,13 @@ pub fn switch(bundle: &Bundle, plan: Plan) -> Result<Summary> {
         .cloned()
         .collect();
     system::services(wanted, &stale, &mut summary.notes);
+
+    // 5. post_install, after the links and the services — and only then does the ledger
+    //    record that this bundle's hooks have run.
+    run_hooks(&plan, "post_install", bundle, &mut summary.notes);
+    if !plan.hooks.is_empty() && !ledger.hooks_ran.contains(&plan.name) {
+        ledger.hooks_ran.push(plan.name.clone());
+    }
 
     if ledger.active.as_ref() != Some(&plan.name) {
         ledger.previous = ledger.active.take();
@@ -239,6 +344,13 @@ pub fn remove_bundle(name: &str) -> Result<()> {
     Ok(())
 }
 
+fn run_hooks(plan: &Plan, when: &str, bundle: &Bundle, notes: &mut Vec<String>) {
+    for hook in plan.hooks.iter().filter(|h| h.when == when) {
+        notes.push(format!("ran {when} hook {}", hook.path));
+        system::hook(&bundle.root, &hook.path, bundle.manifest.mode, notes);
+    }
+}
+
 fn manual_steps(bundle: &Bundle) -> Vec<String> {
     bundle
         .manifest
@@ -265,16 +377,22 @@ fn backup_taken(ledger: &Ledger, stamp: &str) -> bool {
 /// A local path is not copied into the store, it is **linked** into it: the file you edit
 /// stays the file in your repo. Everything under `bundles/` is then a directory as far as
 /// `ls` / `use` / `rm` are concerned (TODO.md Phase 0).
-pub fn link_into_store(path: &std::path::Path) -> Result<String> {
+pub fn link_into_store(path: &std::path::Path, as_name: Option<&str>) -> Result<String> {
     let bundle = Bundle::open(std::fs::canonicalize(path)?)?;
     bundle.manifest.validate()?;
-    let name = bundle.manifest.name.clone();
+    let name = match as_name {
+        Some(given) if !crate::manifest::valid_name(given) => {
+            bail!("`{given}` is not a valid bundle name ([a-z0-9._-]+)")
+        }
+        Some(given) => given.to_string(),
+        None => bundle.manifest.name.clone(),
+    };
     let entry = paths::store().join(&name);
 
     match entry.symlink_metadata() {
         Ok(meta) if meta.file_type().is_symlink() && std::fs::read_link(&entry)? == bundle.root => {
         }
-        Ok(_) => bail!("the store already has a bundle called `{name}` (`--as` is M4)"),
+        Ok(_) => bail!("the store already has a bundle called `{name}` — `--as <other-name>`"),
         Err(_) => {
             std::fs::create_dir_all(paths::store())?;
             std::os::unix::fs::symlink(&bundle.root, &entry)?;

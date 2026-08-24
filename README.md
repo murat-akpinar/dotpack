@@ -6,16 +6,17 @@ command, and switch between rices instantly.
 ```bash
 dotpack collect                # scan this machine, write a bundle
 dotpack use ~/dotfiles         # activate it: links, packages, services
+dotpack use github:u/repo      # or somebody else's, straight from git
 dotpack use -                  # didn't like it, go back
 dotpack post                   # the r/unixporn list, generated from the manifest
 ```
 
 Arch Linux · hyprland / sway / i3 · Rust + ratatui
 
-> **Status: the CLI works.** `collect`, `use`, `use -`, `ls`, `sync`, `rm` and `post` are
-> implemented and tested (M0–M3 in [TODO.md](TODO.md)). Still to come: `use
-> github:user/repo` and hooks (M4), `external` mode (M5), the TUI (M6). Until M4 a bundle
-> is added by path — `git clone` it yourself, then `dotpack use ./that-directory`.
+> **Status: the CLI works, and it shares.** `collect`, `add`, `use`, `use -`, `ls`,
+> `sync`, `rm` and `post` are implemented and tested (M0–M4 in [TODO.md](TODO.md)), so
+> `dotpack use github:user/repo` clones, plans, installs and runs the bundle's hooks.
+> Still to come: `external` mode (M5) and the TUI (M6).
 
 ## The problem
 

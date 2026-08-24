@@ -1,6 +1,6 @@
 //! pacman and the AUR helper — the only module that installs anything system-wide.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -132,6 +132,74 @@ fn unsatisfied(packages: &[String]) -> Result<Vec<String>> {
     }
 }
 
+// --- requires start ---
+
+/// `requires = { hyprland = ">=0.56" }`. **Warns, never blocks** — someone may want the
+/// files anyway, and that is their call (manifest.md).
+///
+/// A package that is not installed yet says nothing: the install is about to bring it in,
+/// and pacman hands out the newest version there is.
+pub fn requires_warnings(requires: &BTreeMap<String, String>) -> Vec<String> {
+    let mut warnings = Vec::new();
+    for (name, spec) in requires {
+        let Some(have) = installed_version(name) else {
+            continue;
+        };
+        let wanted = spec.trim_start_matches(['>', '=', ' ']);
+        match at_least(&have, wanted) {
+            Some(true) => {}
+            Some(false) => warnings.push(format!("{name} {spec} — this machine has {have}")),
+            None => warnings.push(format!(
+                "{name} {spec} cannot be compared with the installed {have}"
+            )),
+        }
+    }
+    warnings
+}
+
+fn installed_version(name: &str) -> Option<String> {
+    let out = Command::new("pacman").args(["-Q", name]).output().ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let line = String::from_utf8_lossy(&out.stdout);
+    Some(upstream(line.split_whitespace().nth(1)?))
+}
+
+/// `pacman -Q` prints `hyprland 1:0.56.0-2`: the epoch and the pkgrel are Arch's, not the
+/// upstream version, so both come off before anything is compared.
+fn upstream(version: &str) -> String {
+    let no_epoch = version.split_once(':').map_or(version, |(_, rest)| rest);
+    no_epoch
+        .rsplit_once('-')
+        .map_or(no_epoch, |(v, _)| v)
+        .into()
+}
+
+/// Field by field, **as integers**: `0.9` against `0.56` is why a string comparison is
+/// not acceptable. A non-numeric field anywhere means "cannot compare" — `None`.
+fn at_least(have: &str, wanted: &str) -> Option<bool> {
+    let fields = |v: &str| {
+        v.split('.')
+            .map(|f| f.parse::<u64>().ok())
+            .collect::<Option<Vec<u64>>>()
+    };
+    let (have, wanted) = (fields(have)?, fields(wanted)?);
+    // A missing field is a zero: 0.56 is 0.56.0, and neither is newer than the other.
+    for index in 0..have.len().max(wanted.len()) {
+        let (h, w) = (
+            have.get(index).copied().unwrap_or(0),
+            wanted.get(index).copied().unwrap_or(0),
+        );
+        if h != w {
+            return Some(h > w);
+        }
+    }
+    Some(true)
+}
+
+// --- requires end ---
+
 /// The package that owns a file. It can answer with a name that is **not** the command
 /// and that is not an error: `/usr/bin/quickshell` is owned by `noctalia-qs`, which
 /// *provides* `quickshell` (design.md §5).
@@ -224,6 +292,28 @@ mod tests {
     fn never_upgrades_the_system() {
         let forbidden = format!("\"-S{}\"", "yu");
         assert!(!include_str!("pkg.rs").contains(&forbidden));
+    }
+
+    /// `0.9` against `0.56` is the case a string comparison gets wrong.
+    #[test]
+    fn versions_compare_as_integers() {
+        assert_eq!(at_least("0.56", "0.9"), Some(true));
+        assert_eq!(at_least("0.9", "0.56"), Some(false));
+        assert_eq!(at_least("0.56.0", "0.56"), Some(true));
+        assert_eq!(at_least("1.0", "1.0.1"), Some(false));
+        assert_eq!(at_least("0.50.1-rc", "0.50"), None);
+    }
+
+    /// pacman answers with an epoch and a pkgrel; neither is the upstream version.
+    #[test]
+    fn the_installed_version_is_stripped() {
+        assert_eq!(upstream("1:0.56.0-2"), "0.56.0");
+        assert_eq!(upstream("0.56.0"), "0.56.0");
+        // A `-git` build's version genuinely cannot be compared field by field, and
+        // saying so is the right answer — this machine's own pacman is one.
+        assert_eq!(at_least(&upstream("7.1.0.r9.g54d9411-1"), "7.1"), None);
+        assert_eq!(installed_version("pacman-not-a-real-package"), None);
+        assert!(installed_version("pacman").is_some());
     }
 
     #[test]

@@ -46,14 +46,21 @@ Resolution:
 | `github:U/R` | `https://github.com/U/R.git` |
 | `github:U/R/BRANCH` | the same, with `--branch BRANCH` |
 | `gitlab:U/R` | `https://gitlab.com/U/R.git` |
-| `https://…`, `git@…` | used directly |
+| `https://…`, `git@…`, `file://…` | used directly |
 | `./`, `~/`, `/` | local folder — not copied, used **where it is** |
 
 Not copying a local path matters: while working on your own dotfile repo, you want the
 file you edit to be written into your repo, not into a second copy.
 
 The bundle name comes from the `name` field in `dotfiles.toml`; on a collision it can be
-renamed with `--as <name>`.
+renamed with `--as <name>`. `--as` names a directory in the store, so it answers to the
+same `[a-z0-9._-]+` rule the manifest's `name` does — otherwise it is a path escape
+wearing a name.
+
+The clone is `git clone --depth 1` (real rice repos are 75 MB+ of history nobody reads)
+and it lands in the store under `.fetching` until it has turned out to be a bundle. A
+repo with no `dotfiles.toml` is rejected and the clone is thrown away; there is
+deliberately no fallback that runs a foreign `install.sh`.
 
 ### `#variant` — reserved for now
 

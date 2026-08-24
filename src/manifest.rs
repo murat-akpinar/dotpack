@@ -243,6 +243,17 @@ impl Hooks {
     }
 }
 
+/// The name is the bundle's directory in the store, so `add --as` answers to it too:
+/// anything else is a path escape wearing a name.
+pub fn valid_name(name: &str) -> bool {
+    !name.is_empty()
+        && name
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, '.' | '_' | '-'))
+        && name != "." // `.` and `..` pass the character rule and are not names
+        && name != ".."
+}
+
 impl Manifest {
     /// Read `<dir>/dotfiles.toml`. A bundle without one is rejected here (invariant 10).
     pub fn load(dir: &Path) -> Result<Self> {
@@ -268,11 +279,7 @@ impl Manifest {
         let mut errors = Vec::new();
         let mut warnings = Vec::new();
 
-        if self.name.is_empty()
-            || !self.name.chars().all(|c| {
-                c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, '.' | '_' | '-')
-            })
-        {
+        if !valid_name(&self.name) {
             errors.push(format!(
                 "name `{}` is not a valid store directory name ([a-z0-9._-]+)",
                 self.name

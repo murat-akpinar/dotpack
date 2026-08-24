@@ -153,6 +153,47 @@ impl TestEnv {
         b
     }
 
+    /// A bundle that arrives the way a shared one does: over git, with hooks. The hooks
+    /// append to a file under HOME, which is exactly what real ones do and exactly why
+    /// running them twice has to be impossible (real-world.md F4).
+    fn git_repo(&self) -> PathBuf {
+        let repo = self.root.join("shared-rice");
+        for (path, contents) in [
+            (
+                "dotfiles.toml",
+                "name = \"shared-rice\"\nwm = \"hyprland\"\n\n[hooks]\npre_install  = \"hooks/pre.sh\"\npost_install = \"hooks/post.sh\"\n",
+            ),
+            ("config/shared/shared.conf", "shared = 1\n"),
+            (
+                "hooks/pre.sh",
+                "#!/bin/sh\necho \"pre $DP_MODE $DP_BUNDLE_DIR\" >> \"$HOME/hook.log\"\n",
+            ),
+            (
+                "hooks/post.sh",
+                "#!/bin/sh\necho \"post $DP_MODE $DP_BUNDLE_DIR\" >> \"$HOME/hook.log\"\n",
+            ),
+        ] {
+            let file = repo.join(path);
+            std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+            std::fs::write(&file, contents).unwrap();
+            if path.starts_with("hooks/") {
+                std::fs::set_permissions(
+                    &file,
+                    std::os::unix::fs::PermissionsExt::from_mode(0o755),
+                )
+                .unwrap();
+            }
+        }
+        git(&repo, &["init", "-q"]);
+        git(&repo, &["add", "-A"]);
+        git(&repo, &["commit", "-qm", "first"]);
+        repo
+    }
+
+    fn store(&self, name: &str) -> PathBuf {
+        self.home.join(".local/share/dotpack/bundles").join(name)
+    }
+
     fn write(&self, relative: &str, contents: &str) {
         let file = self.home.join(relative);
         std::fs::create_dir_all(file.parent().unwrap()).unwrap();
@@ -315,5 +356,105 @@ fn sync_writes_a_detached_file_back() {
         std::fs::read_to_string(b.join("home/.testrc")).unwrap(),
         "export B=2\n",
         "the bundle is unchanged"
+    );
+}
+
+/// M4: a bundle that arrives as a git repo. The clone, the hook the receiver had to
+/// approve, and the one rule about hooks that cannot be undone if it is wrong — they run
+/// on the **first** activation and never again, because real hooks append to files.
+///
+/// The remote is a `file://` repo rather than github: everything above the transport is
+/// the same code, and a test that needs the network is a test that gets disabled.
+#[test]
+fn a_cloned_bundle_runs_its_hooks_exactly_once() {
+    let env = TestEnv::new("share");
+    let url = format!("file://{}", env.git_repo().display());
+    let log = env.home.join("hook.log");
+
+    env.run(&["use", &url, "-y"]);
+    assert!(
+        env.read_link(".config/shared")
+            .is_some_and(|t| t.ends_with("shared-rice/config/shared")),
+        "the clone is in the store and its config is linked out of it"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&log).unwrap(),
+        format!(
+            "pre symlink {}\npost symlink {}\n",
+            env.store("shared-rice").display(),
+            env.store("shared-rice").display()
+        ),
+        "both hooks ran, in order, with DP_BUNDLE_DIR and DP_MODE set"
+    );
+
+    // Away and back: the ledger remembers, so nothing is appended a second time.
+    let b = env.bundle_b();
+    env.run(&["use", b.to_str().unwrap(), "-y"]);
+    env.run(&["use", "shared-rice", "-y"]);
+    assert_eq!(
+        std::fs::read_to_string(&log).unwrap().lines().count(),
+        2,
+        "hooks run on first activation only"
+    );
+
+    env.run(&["use", "-", "-y"]);
+    env.run(&["use", "shared-rice", "-y", "--run-hooks"]);
+    assert_eq!(
+        std::fs::read_to_string(&log).unwrap().lines().count(),
+        4,
+        "--run-hooks forces them"
+    );
+
+    // The same source again collides on the manifest's name, and `--as` is the way out.
+    let out = env.try_run(&["add", &url]);
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("--as"),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    env.run(&["add", &url, "--as", "second-copy"]);
+    assert!(env.store("second-copy").join("dotfiles.toml").is_file());
+    assert!(
+        !env.store("second-copy").join("config/shared").is_symlink(),
+        "add downloads and installs nothing"
+    );
+}
+
+/// A repo that is not a bundle is rejected, and the clone it came from is not left
+/// behind — there is deliberately no fallback that runs a foreign `install.sh`.
+#[test]
+fn a_repo_without_a_manifest_is_refused() {
+    let env = TestEnv::new("no-manifest");
+    let repo = env.root.join("plain-repo");
+    std::fs::create_dir_all(&repo).unwrap();
+    std::fs::write(repo.join("install.sh"), "#!/bin/sh\necho pwned\n").unwrap();
+    git(&repo, &["init", "-q"]);
+    git(&repo, &["add", "-A"]);
+    git(&repo, &["commit", "-qm", "first"]);
+
+    let out = env.try_run(&["add", &format!("file://{}", repo.display())]);
+    let said = String::from_utf8_lossy(&out.stderr).to_string();
+    assert!(!out.status.success(), "{said}");
+    assert!(said.contains("not a dotpack bundle"), "{said}");
+    assert!(
+        !env.home
+            .join(".local/share/dotpack/bundles/.fetching")
+            .exists(),
+        "and the clone was thrown away"
+    );
+}
+
+fn git(repo: &Path, args: &[&str]) {
+    let out = Command::new("git")
+        .args(["-c", "user.email=t@example.com", "-c", "user.name=test"])
+        .args(args)
+        .current_dir(repo)
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "git {}\n{}",
+        args.join(" "),
+        String::from_utf8_lossy(&out.stderr)
     );
 }

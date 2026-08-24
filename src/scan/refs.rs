@@ -74,10 +74,19 @@ impl Reference {
 
 /// `files` are the paths the selection will ship, at the place they live on this machine.
 pub fn scan(files: &[PathBuf]) -> Vec<Reference> {
-    let shipped: BTreeSet<&Path> = files.iter().map(PathBuf::as_path).collect();
+    let pairs: Vec<(PathBuf, PathBuf)> = files.iter().map(|f| (f.clone(), f.clone())).collect();
+    scan_at(&pairs)
+}
+
+/// `(read from, will live at)`. For a bundle the two differ — the file sits in the store
+/// and every reference inside it resolves against where it is going to be installed. That
+/// is the whole validation-time check on somebody else's bundle: the same scan, run
+/// before the links are placed rather than after.
+pub fn scan_at(files: &[(PathBuf, PathBuf)]) -> Vec<Reference> {
+    let shipped: BTreeSet<&Path> = files.iter().map(|(_, at)| at.as_path()).collect();
     let mut found = Vec::new();
 
-    for file in files {
+    for (file, at) in files {
         // A bundle's README and manifest *describe* paths, they do not consume them.
         if matches!(
             file.file_name().and_then(|n| n.to_str()),
@@ -88,7 +97,7 @@ pub fn scan(files: &[PathBuf]) -> Vec<Reference> {
         let Some(text) = read_text(file) else {
             continue;
         };
-        let dir = file.parent().unwrap_or(Path::new("/"));
+        let dir = at.parent().unwrap_or(Path::new("/"));
 
         for (index, line) in text.lines().enumerate() {
             for raw in references_in(line, dir) {

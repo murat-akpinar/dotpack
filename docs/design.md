@@ -1,6 +1,6 @@
 # dotpack — Design
 
-Date: 2026-08-23 · Status: design (no code)
+Date: 2026-08-23 · Status: implemented through M4 ([TODO.md](../TODO.md))
 Prior research: [research.md](./research.md)
 
 ---
@@ -15,8 +15,8 @@ The verbs:
 | Command | Job |
 |---|---|
 | `dotpack collect` | Scans the machine's configs + packages, produces a bundle in the standard format |
-| `dotpack add <source>` | Downloads a remote/local bundle into the local store (does not install) |
-| `dotpack use <name>` | Makes a bundle **active** — this is the rice switch |
+| `dotpack add <source>` | Downloads a remote/local bundle into the local store (does not install) — `--as <name>` on a name collision |
+| `dotpack use <name>` | Makes a bundle **active** — this is the rice switch. Takes a source too, and `--no-hooks` / `--run-hooks` decide what happens to the bundle's scripts |
 | `dotpack ls` | Bundles in the local store, and which one is active |
 | `dotpack sync` | Repairs the active bundle — writes a link an application replaced with a real file back into the bundle, then re-links |
 | `dotpack post [name]` | Renders `components` as a shareable list and copies it — `--format reddit\|markdown\|plain`, and the name may be a path. Defaults to the active bundle ([standard.md](./standard.md)) |
@@ -595,6 +595,7 @@ dotpack/
     ├── paths.rs         # HOME, store, state, backups — every path starts here
     ├── manifest.rs      # dotfiles.toml serde types, read/write/validate
     ├── bundle.rs        # directory layout rules, path mapping (config/→~/.config)
+    ├── source.rs        # github:U/R, git URLs, local paths → a Source  (profiles.md §2)
     ├── pkg.rs           # pacman/expac queries, helper detection, installation
     ├── scan/
     │   ├── mod.rs       # scan orchestration
@@ -608,6 +609,7 @@ dotpack/
     │   ├── mod.rs       # the sequences only: activate(), switch(), deactivate()  (§4.2, §4.3)
     │   ├── ledger.rs    # state.toml — active, previous, links, mkdirs, hooks_ran
     │   ├── links.rs     # place / remove / repoint, and the mkdirs bookkeeping
+    │   ├── fetch.rs     # git clone --depth 1 into the store  (profiles.md §2)
     │   ├── backup.rs    # adopt a real file into backups/, restore it on the way out
     │   ├── system.rs    # services, fc-cache, WM reload, hooks
     │   └── write.rs     # write_bundle() — collect's output  (§4.1)
