@@ -1,5 +1,10 @@
 # dotpack
 
+[![crates.io](https://img.shields.io/crates/v/dotpack?color=green&label=crates.io)](https://crates.io/crates/dotpack)
+[![license](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
+[![rust](https://img.shields.io/badge/rust-1.88%2B-orange)](https://www.rust-lang.org)
+[![built with Claude Code](https://img.shields.io/badge/built%20with-Claude%20Code-8A63D2)](https://claude.com/claude-code)
+
 Bundle your dotfiles **together with the packages they need**, install them with one
 command, and switch between rices instantly.
 
@@ -124,3 +129,18 @@ with `git subtree push --prefix=example`.
 
 The build order lives in [TODO.md](TODO.md): eight milestones, each leaving a usable tool
 behind, and one Phase 0 list of the questions still open.
+
+## How it was built
+
+dotpack was written with [Claude Code](https://claude.com/claude-code), pair-programming
+rather than prompting: the design in `docs/`, the format in `spec/` and every milestone
+note in `TODO.md` came out of that back-and-forth, and each one records what it cost and
+what it got wrong. The parts worth reading for that are the teardown in
+[docs/real-world.md](docs/real-world.md) — a real shared rice pulled apart, which is where
+several of the design rules come from — and the findings list in
+[example/README.md](example/README.md), written at the moment each one was found rather
+than tidied up afterwards.
+
+The commits are the author's own. Nothing here was accepted without being run: the
+milestone notes name the bugs that only showed up on a second machine, and the ones that
+were shipped and then caught by a check written afterwards.
