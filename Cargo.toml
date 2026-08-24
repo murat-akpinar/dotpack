@@ -6,6 +6,9 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0.104"
 clap = { version = "4.6.6", features = ["derive"] }
+# crossterm comes through `ratatui::crossterm`, so it is not a second line here: one
+# re-export instead of two version numbers that have to agree.
+ratatui = { version = "0.30.2", default-features = false, features = ["crossterm"] }
 serde = { version = "1.0.229", features = ["derive"] }
 toml = "1.1.4"
 walkdir = "2.5.0"

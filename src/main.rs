@@ -6,6 +6,7 @@ mod pkg;
 mod post;
 mod scan;
 mod source;
+mod tui;
 
 use std::io::Write;
 use std::path::Path;
@@ -136,7 +137,7 @@ fn main() -> Result<()> {
         }) => collect(&dirs, out, name, wm, &ignore, external, !no_git, yes),
         Some(Command::Post { name, format }) => post(name, format),
         Some(Command::Add { source, as_name }) => add(&source, as_name.as_deref()),
-        None => bail!("the TUI is M6 — use a subcommand for now (`dotpack --help`)"),
+        None => tui::run(),
     }
 }
 
@@ -229,6 +230,7 @@ fn show(plan: &apply::Plan) {
         ("link", &plan.place),
         ("unlink", &plan.remove),
         ("detached", &plan.detached),
+        ("service", &plan.services),
         ("manual", &plan.manual),
         ("warning", &plan.warnings),
     ] {
@@ -441,58 +443,41 @@ fn post(name: Option<String>, format: post::Format) -> Result<()> {
 // --- post end ---
 
 fn list() -> Result<()> {
-    let ledger = Ledger::load()?;
-    let bundles = bundle::store_list()?;
-    if bundles.is_empty() {
+    let rows = bundle::rows()?;
+    if rows.is_empty() {
         println!("no bundles — `dotpack use <path>` adds one");
         return Ok(());
     }
-    for path in bundles {
-        let name = path
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .to_string();
-        let active = ledger.active.as_deref() == Some(&name);
-        match Bundle::open(&path) {
-            Ok(b) => {
-                let m = &b.manifest;
-                let count = m.packages.pacman.len() + m.packages.yay.len() + m.packages.paru.len();
-                let mut state = if active {
-                    "active".to_string()
-                } else {
-                    String::new()
-                };
-                if m.mode == manifest::Mode::External {
-                    state.push_str(if active { " · external" } else { "external" });
-                }
-                if active {
-                    let detached = ledger
-                        .links
-                        .iter()
-                        .filter(|e| {
-                            apply::links::state(e, &b.root) == apply::links::State::Detached
-                        })
-                        .count();
-                    if detached > 0 {
-                        state.push_str(&format!(" · {detached} detached"));
-                    }
-                    // In symlink mode the active bundle's files are the ones being
-                    // edited, so a token added the day after `collect` is seen by nothing
-                    // unless this looks too (design.md §6).
-                    let secrets = scan::secrets::scan(&b.files()).len();
-                    if secrets > 0 {
-                        state.push_str(&format!(" · {secrets} secret"));
-                    }
-                }
-                println!(
-                    "{} {name:<24} {:<9} {count:>3} packages   {state}",
-                    if active { "●" } else { "○" },
-                    format!("{:?}", m.wm).to_lowercase(),
-                );
+    for row in rows {
+        let name = &row.name;
+        let b = match &row.bundle {
+            Ok(b) => b,
+            Err(e) => {
+                println!("✗ {name:<24} {e}");
+                continue;
             }
-            Err(e) => println!("✗ {name:<24} {e}"),
+        };
+        let m = &b.manifest;
+        let mut state = Vec::new();
+        if row.active {
+            state.push("active".to_string());
         }
+        if m.mode == manifest::Mode::External {
+            state.push("external".to_string());
+        }
+        if row.detached > 0 {
+            state.push(format!("{} detached", row.detached));
+        }
+        if row.secrets > 0 {
+            state.push(format!("{} secret", row.secrets));
+        }
+        println!(
+            "{} {name:<24} {:<9} {:>3} packages   {}",
+            if row.active { "●" } else { "○" },
+            format!("{:?}", m.wm).to_lowercase(),
+            m.packages.count(),
+            state.join(" · "),
+        );
     }
     Ok(())
 }

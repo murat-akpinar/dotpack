@@ -9,10 +9,11 @@ them in one command, and switches between rices by re-pointing symlinks.
 
 Rust + ratatui · Arch only · hyprland / sway / i3.
 
-**M0–M5 are done: switching, `collect`, `post` + the generated README, sharing —
-`use github:user/repo` clones, plans, warns and runs the bundle's hooks — and `external`
-mode, where a bundle ships no files and `collect --external` adds a manifest to a chezmoi
-or stow repo.** The TUI is M6, is next, and `src/tui/` does not exist yet. Read
+**M0–M6 are done: switching, `collect`, `post` + the generated README, sharing —
+`use github:user/repo` clones, plans, warns and runs the bundle's hooks — `external` mode,
+and the TUI.** `dotpack` with no arguments opens `src/tui/`; every screen calls the same
+function the CLI calls. What is left is M7, release prep: sway and i3, a clean user with no
+AUR helper, and publishing the example bundle. Read
 `docs/design.md` before proposing any structure, and `docs/real-world.md` for what
 real shared rices actually look like (several design rules come from that teardown).
 `TODO.md` is the running score: each finished milestone carries a note on what it cost and
@@ -116,7 +117,10 @@ reference. `docs/design.md` §5.1.
 
 ## Dependencies
 
-Current set — `ratatui`, `crossterm`, `serde`, `toml`, `clap`, `walkdir`, `anyhow`.
+Current set — `ratatui`, `serde`, `toml`, `clap`, `walkdir`, `anyhow`. **Six, not seven:**
+crossterm arrives as `ratatui::crossterm`, so there is one re-export instead of two version
+numbers that have to agree. ratatui is pulled with `default-features = false` +
+`features = ["crossterm"]` — the default set drags in widgets nothing draws.
 
 The manifest is TOML because humans hand-write it and JSON has no comments. Tool-written
 state (`state.toml`) uses the same format so there is one parser, not two.

@@ -94,6 +94,79 @@ impl Bundle {
     }
 }
 
+// --- store view start ---
+
+/// One line of `dotpack ls`, and one row of the TUI's main screen. Both need exactly the
+/// same four questions answered, and answering them twice is how the two faces of a tool
+/// start disagreeing about what is on the machine.
+pub struct Row {
+    pub name: String,
+    pub path: PathBuf,
+    /// `Err` carries the message shown in place of the columns: a bundle whose manifest
+    /// does not parse still has to be listed, because the list is where you find out.
+    pub bundle: std::result::Result<Bundle, String>,
+    pub active: bool,
+    /// Only asked of the active bundle — nothing else has anything on disk to detach, and
+    /// scanning every bundle in the store for secrets on every `ls` is minutes of work.
+    pub detached: usize,
+    pub secrets: usize,
+}
+
+pub fn rows() -> Result<Vec<Row>> {
+    let ledger = crate::apply::ledger::Ledger::load()?;
+    let mut rows = Vec::new();
+    for path in store_list()? {
+        let name = path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+        let active = ledger.active.as_deref() == Some(&name);
+        let bundle = Bundle::open(&path).map_err(|e| format!("{e}"));
+        let (mut detached, mut secrets) = (0, 0);
+        if let Ok(b) = &bundle
+            && active
+        {
+            detached = ledger
+                .links
+                .iter()
+                .filter(|e| {
+                    crate::apply::links::state(e, &b.root) == crate::apply::links::State::Detached
+                })
+                .count();
+            // In symlink mode the active bundle's files are the ones being edited, so a
+            // token added the day after `collect` is seen by nothing unless this looks
+            // too (design.md §6).
+            secrets = crate::scan::secrets::scan(&b.files()).len();
+        }
+        rows.push(Row {
+            name,
+            path,
+            bundle,
+            active,
+            detached,
+            secrets,
+        });
+    }
+    Ok(rows)
+}
+
+impl Bundle {
+    /// The top-level names under `config/` — the detail panel's `config: hypr, fish, …`.
+    pub fn config_dirs(&self) -> Vec<String> {
+        let mut names: Vec<String> = std::fs::read_dir(self.root.join("config"))
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .collect();
+        names.sort();
+        names
+    }
+}
+
+// --- store view end ---
+
 // --- layout start ---
 
 pub fn links(root: &Path) -> Result<Vec<Link>> {

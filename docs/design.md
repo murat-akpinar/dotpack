@@ -625,10 +625,18 @@ dotpack/
     │   └── write.rs     # write_bundle() — collect's output  (§4.1)
     ├── post.rs          # components → shareable list + generated README
     └── tui/
-        ├── mod.rs       # event loop, screen routing
-        ├── app.rs       # application state (state machine)
-        └── screens/     # one file per screen  → tui.md
+        ├── mod.rs       # event loop, app state, keys, and the jobs that leave the TUI
+        ├── draw.rs      # main screen, switch plan, hook window, confirm/prompt, help
+        └── collect.rs   # the 5-step wizard: its state, its keys and its screens
 ```
+
+The `tui/` split is one file smaller than this document originally planned, in both
+directions. `app.rs` folded into `mod.rs` because the state *is* the loop's — a struct and
+the `match` that mutates it, separated by a file boundary, is one subject read in two
+places. And `screens/` did not become one file per screen: they would be nine files of
+twenty lines with a shared bag of helpers, so the split that earned its keep was by
+*subject* instead — the wizard is the one screen with state of its own, so it took its
+drawing with it.
 
 The split is clear: `scan/` only **reads and produces suggestions**, `apply/` only
 **writes**, `tui/` only **displays and lets the user choose**. No scan function writes to

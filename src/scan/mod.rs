@@ -249,7 +249,7 @@ const DEFAULT_PATTERN_NOTED: &[&str] = &[".git/", "node_modules/", "*.log"];
 
 /// The WM's own directory, plus the directories of what its config actually starts and
 /// points at. This is the CLI's half of the wizard's "WM-related ones pre-ticked".
-fn default_selection(wm: Wm, warnings: &mut Vec<String>) -> Vec<String> {
+pub fn default_selection(wm: Wm, warnings: &mut Vec<String>) -> Vec<String> {
     let own = wm::rules(wm).dir.to_string();
     let files = files_under(&paths::config().join(&own))
         .into_iter()

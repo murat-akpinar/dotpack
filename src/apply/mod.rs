@@ -29,6 +29,9 @@ pub struct Plan {
     pub place: Vec<String>,
     pub remove: Vec<String>,
     pub detached: Vec<String>,
+    /// `+ unit` / `− unit`. On the way out of a bundle its units are **disabled**, and
+    /// the plan is the only place that says so before it happens.
+    pub services: Vec<String>,
     pub warnings: Vec<String>,
     /// The role list, in `external` mode only — there the plan has no links to show and
     /// this is the bundle's whole description of what is being installed.
@@ -97,6 +100,7 @@ pub fn plan(bundle: &Bundle, options: Options) -> Result<Plan> {
             .collect(),
         remove: remove.iter().map(|e| e.target.clone()).collect(),
         detached,
+        services: service_changes(&bundle.manifest.services, &ledger.services),
         warnings,
         roles: match bundle.manifest.mode {
             crate::manifest::Mode::External => {
@@ -110,6 +114,21 @@ pub fn plan(bundle: &Bundle, options: Options) -> Result<Plan> {
         manual: manual_steps(bundle),
         hooks,
     })
+}
+
+fn service_changes(wanted: &[String], current: &[String]) -> Vec<String> {
+    let mut out: Vec<String> = wanted
+        .iter()
+        .filter(|s| !current.contains(s))
+        .map(|s| format!("+ {s}"))
+        .collect();
+    out.extend(
+        current
+            .iter()
+            .filter(|s| !wanted.contains(s))
+            .map(|s| format!("− {s}")),
+    );
+    out
 }
 
 /// `external` mode ships no files, and the one thing the user must not have to work out

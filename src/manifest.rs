@@ -162,6 +162,12 @@ pub enum Mode {
     External,
 }
 
+impl Packages {
+    pub fn count(&self) -> usize {
+        self.pacman.len() + self.yay.len() + self.paru.len()
+    }
+}
+
 #[derive(Debug, PartialEq, Default, Serialize, Deserialize)]
 pub struct Packages {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

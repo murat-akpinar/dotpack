@@ -1,8 +1,8 @@
 # Work Plan
 
 The design is done (`docs/`). This file says in which order the code gets written, and
-what each milestone actually turned out to be worth. **M0–M5 are done**; M6 (the TUI) is
-next.
+what each milestone actually turned out to be worth. **M0–M6 are done**; M7 (release prep)
+is what is left.
 
 **Ordering principle:** every milestone leaves behind **something usable on its own**. Not
 a half-finished layer, a working tool. When M1 is done it has to produce value for a single
@@ -54,11 +54,7 @@ tool behind.
 - [ ] **When are `assets` copied** — first activation only, or every switch? `design.md`
       §4.2's thirteen steps have no asset step at all, and no bundle in the repo has one.
       `bundle::assets()` maps the paths and nothing calls it (M1)
-- [ ] **Where `collect` writes** — is `~/dotfiles/` the default, or is `--out` mandatory? (M2)
-- [ ] **A half-finished collect wizard** — save state for `--resume`, or start over? (M6)
-- [ ] **`/` search** — filter the list, or jump to the match? (M6)
-- [ ] **Bundle deletion confirmation** — `y/n`, or type the name? (M6)
-- [ ] **Terminal under 80x24** — warn and quit, or compress the layout? (M6)
+
 
 Answered, recorded here so they stop being re-asked:
 
@@ -96,6 +92,23 @@ Answered, recorded here so they stop being re-asked:
   provides becomes a `components` entry with its path and a warning. Papirus is 100 MB,
   and `example/`'s own cursor is a manual step for exactly this reason.
 
+**The four M6 asked:**
+
+- **A half-finished collect wizard** → **start over.** `--resume` needs a second state
+  file and `state.toml` is the only one there is; the scan it would restore is one
+  keypress away.
+- **`/` search** → **filter the list.** On a screen where every row is a decision, hiding
+  the rest is the point. Ticks are stored by name, so a filtered list cannot tick the
+  wrong row — which is the failure a jump-to-match design does not have and is the only
+  reason to prefer it.
+- **Bundle deletion confirmation** → **`y/n`.** `rm` refuses while the bundle is active, a
+  local bundle is only a link in the store, and a cloned one clones again. Typing the name
+  belongs to losses that cannot be undone; this is not one.
+- **Terminal under 80x24** → **neither warn-and-quit nor a compressed layout.** One line
+  saying what is missing, and the loop keeps running: a resize redraws and nothing in
+  progress is lost. Quitting on a window drag is hostile, and a second layout is a second
+  layout to maintain for the case nobody stays in.
+
 **Earlier:**
 
 - **License** → GPL-3.0, `LICENSE` committed. The `MIT` in the doc examples is a
@@ -105,7 +118,8 @@ Answered, recorded here so they stop being re-asked:
 - **git URLs in v1** → yes, `add`/`use` take them (M4).
 - **`README.md`** → `collect` generates it, from the same renderer as `post` (M3).
 
-Nothing above blocks M0 or M1 any more; the remaining five are M2 and M6 questions.
+One question is left open — when `assets` are copied — and it is M1's, still waiting for a
+bundle that has any.
 **This is the only list** — the per-document "Open Decisions" sections are gone, because
 keeping five of them is how three of these came to be answered elsewhere without anyone
 striking them out.
@@ -437,19 +451,50 @@ README untouched.
 
 ## M6 — TUI · 3 weekends
 
-- [ ] Event loop, alternate screen, raw mode
-- [ ] `std::panic::set_hook` restores the terminal first
-- [ ] Leave/re-enter the terminal around package installation (moved here from M4)
-- [ ] Worker thread + `mpsc` — scanning must not freeze the UI
-- [ ] Main screen: bundle list, active marker, detached + secret counters, detail panel
-- [ ] Switch plan screen, hook source with `h`
-- [ ] Collect wizard, 5 steps — warnings screen carries secrets **and** dangling references
-- [ ] Checklist widget (ratatui has none built in — `List` + our own state)
-- [ ] Consistent keymap + `?` help
-- [ ] Terminal palette colors only
+- [x] Event loop, alternate screen, raw mode
+- [x] `std::panic::set_hook` restores the terminal first — **ratatui's own**, installed by
+      `ratatui::init()`. Ours would have been the same code with our name on it
+- [x] Leave/re-enter the terminal around package installation (moved here from M4)
+- [x] Worker thread + `mpsc` — scanning must not freeze the UI
+- [x] Main screen: bundle list, active marker, detached + secret counters, detail panel
+- [x] Switch plan screen, hook source with `h`
+- [x] Collect wizard, 5 steps — warnings screen carries secrets **and** dangling references
+- [x] Checklist widget (ratatui has none built in — `List` + our own state)
+- [x] Consistent keymap + `?` help
+- [x] Terminal palette colors only
 
 **Done means:** every screen in `docs/tui.md` is reachable, and `esc` goes back everywhere
 without applying anything.
+
+✅ Done. `dotpack` with no arguments opens it. Nine screens in 1853 lines, tests included,
+and the reason it is that small is that every screen calls something M1–M5 already wrote: the plan
+screen *is* `apply::plan`, the wizard *is* `scan::collect`, and applying anything prints
+through `main.rs`'s own `show` / `report` with the terminal handed back.
+
+- **The panic hook is ratatui's.** `ratatui::init()` installs one that restores the
+  terminal before the message prints — §6's non-negotiable, already written by the library.
+- **Jobs are the whole "leave the TUI" design (§5).** A key press never installs anything:
+  it sets a `Job`, and the loop restores the terminal, runs it, waits for `enter`, and goes
+  back in. Packages, `git clone` and hooks all inherit a real terminal, so the sudo prompt
+  works and pacman prints its own progress.
+- **One worker thread, three messages.** The `~/.config` walk — 2252 files in a single
+  directory on this machine — and the scan both run off it, and the event loop's 100 ms
+  poll drains the channel for free. A message arriving for a wizard the user has already
+  left is dropped rather than applied to the next one.
+- **`ls` and the main screen read the same rows.** `bundle::rows()` came out of `main.rs`
+  when the TUI needed the same four answers; two implementations of "what is on this
+  machine" is how two faces of a tool start disagreeing about it.
+- **The plan gained a services section, in both faces.** Switching away from a bundle
+  `disable --now`s its units, and until the TUI drew a screen with a SERVICES block nothing
+  had ever said so before it happened.
+- **`+ add a package by hand` earns its keep on this machine.** `starship` is the case M2
+  recorded as a correct miss — nothing in a config launches it. Step 3/5 is where that gets
+  fixed without editing the manifest afterwards.
+
+Not done, and named rather than pretended: `/` on the main screen (a list of four bundles
+does not need a filter) and `d` on the packages checklist — §7's table gives it to "remove
+a package", which is what `space` already does from the other side, and a second key for
+one outcome is a keymap that has to be remembered twice.
 
 ---
 
