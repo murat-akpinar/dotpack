@@ -10,6 +10,7 @@ pub mod links;
 pub mod system;
 pub mod write;
 
+use std::io::IsTerminal;
 use std::path::PathBuf;
 
 use anyhow::{Result, bail};
@@ -85,7 +86,10 @@ pub fn plan(bundle: &Bundle, options: Options) -> Result<Plan> {
         None => Vec::new(),
     };
 
+    let packages = pkg::plan(&bundle.manifest)?;
+
     let mut warnings = bundle.manifest.validate()?;
+    warnings.extend(no_terminal(&packages));
     warnings.extend(external_note(&bundle.manifest));
     warnings.extend(machine_warnings(bundle)?);
     let (hooks, hook_warning) = hooks(bundle, &ledger, options);
@@ -93,7 +97,7 @@ pub fn plan(bundle: &Bundle, options: Options) -> Result<Plan> {
 
     Ok(Plan {
         name: bundle.manifest.name.clone(),
-        packages: pkg::plan(&bundle.manifest)?,
+        packages,
         place: place
             .iter()
             .map(|(l, _)| paths::contract(&l.target))
@@ -113,6 +117,20 @@ pub fn plan(bundle: &Bundle, options: Options) -> Result<Plan> {
         },
         manual: manual_steps(bundle),
         hooks,
+    })
+}
+
+/// pacman ends every transaction with "Proceed with installation? [Y/n]" and reads a
+/// closed stdin as no, so a piped run installs **nothing** and every package comes back
+/// in the failure list with nothing saying why. Found on a clean machine, M7.
+///
+/// It belongs in the plan and not in the summary: whether stdin is a terminal is known
+/// before anything runs, and afterwards it is only ever a guess at a cause.
+fn no_terminal(packages: &pkg::Plan) -> Option<String> {
+    (!packages.is_empty() && !std::io::stdin().is_terminal()).then(|| {
+        "stdin is not a terminal — pacman asks for confirmation and reads a pipe as no, \
+         so no package will be installed"
+            .to_string()
     })
 }
 
@@ -238,6 +256,16 @@ pub fn switch(bundle: &Bundle, plan: Plan) -> Result<Summary> {
     // 2. Packages, before the links — a config for a program that is not installed yet is
     //    harmless.
     summary.packages_failed = pkg::install(&plan.packages)?;
+    // A machine with no helper is a normal machine, not a broken one — and "not installed"
+    // on its own does not tell the user which half of the list they can do anything about.
+    if plan.packages.helper.is_none() && !plan.packages.aur.is_empty() {
+        summary.notes.push(format!(
+            "{} AUR packages were skipped — no helper is installed. Install paru or yay, \
+             then `dotpack use {}` again",
+            plan.packages.aur.len(),
+            plan.name
+        ));
+    }
 
     // 3. The link diff.
     let new = bundle.links()?;

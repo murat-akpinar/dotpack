@@ -500,10 +500,53 @@ one outcome is a keymap that has to be remembered twice.
 
 ## M7 — Release Prep · 2 weekends
 
-- [ ] Test on sway and i3 (not just hyprland)
-- [ ] Test on a clean user with no helper installed
+- [x] Test on sway and i3 (not just hyprland)
+- [x] Test on a clean user with no helper installed
 - [ ] Publish an example bundle repo — the reference people will look at
 - [ ] Publish the spec as a document separate from the tool (`docs/standard.md` + `manifest.md`)
+
+### The second machine
+
+A second Arch box — Hyprland and sway installed, **no AUR helper**, no `pacman -Fy`
+database, its own `~/.config` — under a throwaway `HOME`, which is the only reason
+invariant 14 was worth having. `collect` and a hyprland → sway → hyprland round trip ran
+there against the example bundle and a hand-written sway config. Five things came back,
+and none of them was visible on the machine the tool was written on.
+
+- **One conflicting name cost all thirty packages.** `pipewire-jack` conflicts with the
+  installed `jack2`, pacman refused the transaction, and *nothing* was installed — while
+  the switch reported "3 linked" and looked like it had worked. This is the same class as
+  "a name no repo has", which `plan` already routes around; the batch now falls back to a
+  transaction per package **only when the batch fails**, so a conflict costs one package.
+  29 of 30 on the retry.
+- **pacman reads a closed stdin as no.** Every transaction ends with
+  `Proceed with installation? [Y/n]`, and piped input aborts it — the whole list comes back
+  as "not installed" with nothing saying why. It is a fact about the invocation, not a
+  cause to guess at afterwards, so it is a plan warning.
+- **`set $term foot` hid the terminal from the dependency scan.** Sway's own default
+  config names each command once in a `set` line and every binding refers to the variable;
+  hyprland's `$terminal` does the same, and the example bundle's
+  `bind = $mainMod, T, exec, $terminal` was being missed on this machine all along. The
+  table is built over the whole selection first, because the definition and the use are in
+  different files.
+- **`include ~/.config/sway/config.d/*` was reported dead on every sway bundle.** The last
+  line of the config sway ships. A glob resolves to its parent directory now.
+- **The example bundle enabled a unit that does not exist.** `easyeffects` ships no user
+  unit on Arch — `collect` never fills `services`, so the line was hand-written and wrong,
+  and it only failed out loud on a machine that did not already have the rice.
+
+The CLI plan also **names the packages** now instead of counting them. The TUI already
+did; "install 30 from repos" is not something a person can approve, and invariant 7 exists
+so that they can.
+
+**i3, honestly:** an i3 config was collected there — same `Rules` row as sway, same
+extraction, `set $mod`/`bindsym`/`bar { status_command }` all read correctly. i3 itself is
+not installed on that box, so `detect()` and `i3-msg reload` were not exercised against a
+running i3. Two lines in one table; named rather than claimed.
+
+**No AUR helper is a normal machine, not a broken one.** It gets the repo packages, is told
+which names were skipped and why, and is never offered a bootstrap — `install.sh` installs
+yay for you, and that is one of the things this tool exists not to do.
 
 ---
 

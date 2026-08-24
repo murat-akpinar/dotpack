@@ -210,11 +210,17 @@ fn show(plan: &apply::Plan) {
     println!("plan: {}", plan.name);
     let p = &plan.packages;
     if !p.is_empty() {
-        println!(
-            "  install   {} from repos, {} from the AUR",
-            p.repo.len(),
-            p.aur.len()
-        );
+        // Named, not counted. This is the last thing anybody sees before thirty packages
+        // are installed, and "30 from repos" is not something a person can approve.
+        for (label, list) in [("repos", &p.repo), ("the AUR", &p.aur)] {
+            if list.is_empty() {
+                continue;
+            }
+            println!("  install   {} from {label}", list.len());
+            for line in wrap(list) {
+                println!("            {line}");
+            }
+        }
         if !p.unknown.is_empty() {
             println!(
                 "            no repo has {} — trying the AUR",
@@ -246,6 +252,21 @@ fn show(plan: &apply::Plan) {
             println!("    │ {line}");
         }
     }
+}
+
+/// Names, space-separated, at a width that survives an 80-column terminal.
+fn wrap(names: &[String]) -> Vec<String> {
+    let mut lines: Vec<String> = Vec::new();
+    for name in names {
+        match lines.last_mut() {
+            Some(line) if line.len() + name.len() < 66 => {
+                line.push(' ');
+                line.push_str(name);
+            }
+            _ => lines.push(name.clone()),
+        }
+    }
+    lines
 }
 
 fn report(summary: apply::Summary) {
@@ -480,4 +501,20 @@ fn list() -> Result<()> {
         );
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn names_wrap_instead_of_running_off_the_terminal() {
+        let names: Vec<String> = (0..30).map(|i| format!("package-{i:02}")).collect();
+        let lines = super::wrap(&names);
+        assert!(lines.len() > 1);
+        assert!(lines.iter().all(|l| l.len() < 66));
+        assert_eq!(
+            lines.join(" ").split_whitespace().count(),
+            30,
+            "every name still appears exactly once"
+        );
+    }
 }

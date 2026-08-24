@@ -179,6 +179,24 @@ written in the format; the manifest now produces **zero** warnings.
 
 ---
 
+## What a second machine turned up
+
+Installing this bundle somewhere that did not already have the rice — Arch, no AUR
+helper, its own `~/.config` — found one thing wrong with **this directory** rather than
+with the tool:
+
+**8: `services = ["easyeffects"]` named a unit that does not exist.** easyeffects ships
+no user unit on Arch; it autostarts from a `.desktop` file. The line was hand-written —
+`collect` never fills `services` — and on the machine it was written on nothing ever tried
+to enable it. The field is `[]` now, which is the honest value for this rice: everything
+else it needs at boot needs root, and that is what the `post-install.sh` below is for.
+
+The other two findings were the tool's and are fixed there: one conflicting package
+(`pipewire-jack` against an installed `jack2`) made pacman refuse the whole transaction,
+and a piped stdin makes it refuse every transaction. `TODO.md` M7 has both.
+
+---
+
 ## What this bundle still needs
 
 The project's acceptance test is *"this installs the rice without `install.sh`"*

@@ -17,7 +17,8 @@ mode   = "symlink"
 # --- services start ---
 # User units only. NetworkManager, sddm, power-profiles-daemon and
 # swayosd-libinput-backend need root and belong in a post-install hook.
-services = ["easyeffects"]
+# Empty, and not by omission: easyeffects ships no user unit — see the README.
+services = []
 # --- services end ---
 
 # --- ignore start ---

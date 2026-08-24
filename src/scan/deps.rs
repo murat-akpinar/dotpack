@@ -203,11 +203,17 @@ fn resolve(
 
 /// Command name → where it was first seen.
 fn candidates(files: &[PathBuf], rules: &Rules) -> BTreeMap<String, String> {
+    let texts: Vec<(&PathBuf, String)> = files
+        .iter()
+        .filter_map(|file| Some((file, super::refs::read_text(file)?)))
+        .collect();
+    // `$terminal = kitty` lives in variables.conf and `bind = …, exec, $terminal` in
+    // keybindings.conf, so the table is built over the whole selection before anything is
+    // read out of it. Every default sway config hides its terminal behind `set $term`.
+    let variables = variables_in(&texts);
+
     let mut found = BTreeMap::new();
-    for file in files {
-        let Some(text) = super::refs::read_text(file) else {
-            continue;
-        };
+    for (file, text) in &texts {
         // The user's own scripts carry dependencies too, and there are usually more of
         // them than there are exec lines.
         // A shell script only. `#!/usr/bin/env python` read in first-token mode turns
@@ -223,9 +229,10 @@ fn candidates(files: &[PathBuf], rules: &Rules) -> BTreeMap<String, String> {
         // A rice's scripts define `info()`, `error()`, `log()` — names that are also real
         // binaries (texinfo ships /usr/bin/info). Without this, every call to one of them
         // suggests a package the rice has never needed.
-        let functions = functions_in(&text);
+        let functions = functions_in(text);
         for (index, line) in text.lines().enumerate() {
-            for command in line_commands(line, script, rules) {
+            let line = substitute(line, &variables);
+            for command in line_commands(&line, script, rules) {
                 if functions.contains(&command) {
                     continue;
                 }
@@ -236,6 +243,47 @@ fn candidates(files: &[PathBuf], rules: &Rules) -> BTreeMap<String, String> {
         }
     }
     found
+}
+
+/// `$terminal = kitty` (hyprland) and `set $term foot` (sway, i3): one line names a
+/// command and every binding below refers to it by variable only.
+///
+/// Longest name first — substituting `$term` inside `$terminal` would otherwise leave a
+/// `footinal` behind.
+fn variables_in(texts: &[(&PathBuf, String)]) -> Vec<(String, String)> {
+    let mut found: Vec<(String, String)> = texts
+        .iter()
+        .flat_map(|(_, text)| text.lines())
+        .filter_map(definition)
+        .collect();
+    found.sort_by_key(|(name, _)| std::cmp::Reverse(name.len()));
+    found
+}
+
+fn definition(line: &str) -> Option<(String, String)> {
+    let line = line.trim();
+    let line = line.strip_prefix("set ").unwrap_or(line);
+    let rest = line.strip_prefix('$')?;
+    let (name, value) = match rest.split_once('=') {
+        Some(pair) => pair,
+        // sway and i3 spell it without one: `set $term foot`.
+        None => rest.split_once(char::is_whitespace)?,
+    };
+    let name = name.trim();
+    let value = value.trim();
+    (!name.is_empty() && !value.is_empty() && name.chars().all(|c| c.is_alphanumeric() || c == '_'))
+        .then(|| (format!("${name}"), value.to_string()))
+}
+
+fn substitute(line: &str, variables: &[(String, String)]) -> String {
+    let mut out = line.to_string();
+    if !out.contains('$') {
+        return out;
+    }
+    for (name, value) in variables {
+        out = out.replace(name.as_str(), value);
+    }
+    out
 }
 
 fn line_commands(line: &str, script: bool, rules: &Rules) -> Vec<String> {
@@ -371,6 +419,45 @@ mod tests {
             ),
             ["grim", "slurp", "satty"],
             "three, not two: the command inside `$(…)` is a dependency like any other"
+        );
+    }
+
+    /// The default sway config names its terminal exactly once, in a `set` line, and the
+    /// binding that launches it never spells the command out. The same holds for
+    /// hyprland's `$terminal`, which is why this is not a sway-only patch.
+    #[test]
+    fn a_variable_carries_the_command() {
+        let table = |text: &str| {
+            let path = PathBuf::from("config");
+            variables_in(&[(&path, text.to_string())])
+        };
+        let sway = table("set $mod Mod4\nset $term foot\n");
+        assert_eq!(
+            line_commands(
+                &substitute("bindsym $mod+Return exec $term", &sway),
+                false,
+                &super::super::wm::rules(Wm::Sway)
+            ),
+            ["foot"]
+        );
+        let hypr = table("$mainMod = SUPER\n$terminal = kitty\n");
+        assert_eq!(
+            line_commands(
+                &substitute("bind = $mainMod, T, exec, $terminal", &hypr),
+                false,
+                &super::super::wm::rules(Wm::Hyprland)
+            ),
+            ["kitty"]
+        );
+        // A colour is a variable too, and substituting it must stay harmless.
+        let colors = table("$active_border = rgba(cfbdfeee)");
+        assert!(
+            line_commands(
+                &substitute("col.active_border = $active_border", &colors),
+                false,
+                &super::super::wm::rules(Wm::Hyprland)
+            )
+            .is_empty()
         );
     }
 

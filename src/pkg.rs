@@ -84,23 +84,42 @@ fn not_in_repos(names: &[String]) -> Result<Vec<String>> {
 /// failure story a switch needs: packages are never removed, so "installed the rest,
 /// these three failed" is a working switch with a named gap (TODO.md Phase 0).
 pub fn install(plan: &Plan) -> Result<Vec<String>> {
-    if !plan.repo.is_empty() {
-        // `-S --needed`, never `-Syu`: a dotfile installer does not upgrade someone's
-        // system behind their back (invariant 8).
-        run(Command::new("sudo")
-            .args(["pacman", "-S", "--needed"])
-            .args(&plan.repo))?;
-    }
+    // `-S --needed`, never `-Syu`: a dotfile installer does not upgrade someone's system
+    // behind their back (invariant 8).
+    each_if_the_batch_fails(&["sudo", "pacman", "-S", "--needed"], &plan.repo)?;
     // No helper: the AUR set comes straight back as unsatisfied below, named.
-    if let Some(helper) = &plan.helper
-        && !plan.aur.is_empty()
-    {
-        run(Command::new(helper)
-            .args(["-S", "--needed"])
-            .args(&plan.aur))?;
+    if let Some(helper) = &plan.helper {
+        each_if_the_batch_fails(&[helper, "-S", "--needed"], &plan.aur)?;
     }
     let all: Vec<String> = plan.repo.iter().chain(&plan.aur).cloned().collect();
     unsatisfied(&all)
+}
+
+/// One name pacman refuses takes the whole transaction with it: `pipewire-jack` conflicts
+/// with the installed `jack2`, and the other twenty-nine packages — which had nothing
+/// wrong with them — do not get installed either. Found on a clean machine, M7.
+///
+/// So the batch runs first, and only when it fails are the names retried one at a time. A
+/// conflict then costs one package instead of the switch.
+///
+/// ponytail: a transaction per package is slow, and it only happens after a batch has
+/// already failed. The failure list is still `pacman -T`'s afterwards, so it stays exact.
+fn each_if_the_batch_fails(command: &[&str], names: &[String]) -> Result<()> {
+    if names.is_empty() {
+        return Ok(());
+    }
+    let build = |names: &[String]| {
+        let mut c = Command::new(command[0]);
+        c.args(&command[1..]).args(names);
+        c
+    };
+    if run(&mut build(names))? {
+        return Ok(());
+    }
+    for name in names {
+        run(&mut build(std::slice::from_ref(name)))?;
+    }
+    Ok(())
 }
 
 /// Which of these are not satisfied on this machine.

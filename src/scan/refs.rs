@@ -210,6 +210,15 @@ fn resolve(raw: &str, dir: &Path) -> Option<PathBuf> {
     if expanded.to_string_lossy().contains('$') {
         return None;
     }
+    // `include ~/.config/sway/config.d/*` — sway's and i3's own way of splitting a config,
+    // and the last line of the config they ship. The directory is the reference; a literal
+    // `*` resolves to nothing and would be called dead on every bundle that uses it.
+    let expanded = match expanded.file_name().and_then(|n| n.to_str()) {
+        Some(name) if name.contains('*') || name.contains('?') => {
+            expanded.parent().unwrap_or(&expanded).to_path_buf()
+        }
+        _ => expanded,
+    };
     Some(normalize(&expanded))
 }
 
@@ -367,6 +376,33 @@ mod tests {
         );
         assert_eq!(v("~/.config/hypr/gone.conf"), Verdict::Dead);
         assert_eq!(v("$XDG_RUNTIME_DIR/x"), Verdict::Unresolved);
+    }
+
+    /// The line every sway and i3 config ends with.
+    #[test]
+    fn a_glob_include_is_the_directory() {
+        unsafe { std::env::set_var("HOME", "/tmp/dp-home") }
+        assert_eq!(
+            extract("include ~/.config/sway/config.d/*"),
+            ["~/.config/sway/config.d/*"]
+        );
+        let shipped_file = PathBuf::from("/tmp/dp-home/.config/sway/config.d/10-outputs");
+        let shipped = BTreeSet::from([shipped_file.as_path()]);
+        assert_eq!(
+            verdict(
+                &resolve("~/.config/sway/config.d/*", Path::new("/here")),
+                &shipped
+            ),
+            Verdict::Shipped
+        );
+        // /etc is a package's, not the bundle's — the same line, unglobbed by the parent.
+        assert_eq!(
+            verdict(
+                &resolve("/etc/sway/config.d/*", Path::new("/here")),
+                &shipped
+            ),
+            Verdict::SystemPath
+        );
     }
 
     /// Over the example bundle, which is a real rice: the numbers the design claims.
