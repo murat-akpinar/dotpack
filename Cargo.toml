@@ -2,6 +2,22 @@
 name = "dotpack"
 version = "0.1.0"
 edition = "2024"
+# let-chains (`if let Some(x) = f() && p(x)`) are stable from 1.88 in edition 2024, and
+# apply/mod.rs uses one. Without this line an older toolchain fails on a parse error
+# instead of on "your rust is too old".
+rust-version = "1.88"
+description = "Bundle dotfiles together with the packages they need, install them with one command, and switch between rices by re-pointing symlinks. Arch Linux, hyprland/sway/i3."
+license = "GPL-3.0-or-later"
+repository = "https://github.com/murat-akpinar/dotpack"
+readme = "README.md"
+keywords = ["dotfiles", "arch-linux", "hyprland", "rice", "tui"]
+categories = ["command-line-utilities", "config"]
+# `example/` is 6.2 MB of the 6.8 MB here and is published on its own at
+# murat-akpinar/dotpack-example, which is what `dotpack use github:…` clones. Shipping it
+# again inside the crate would make every `cargo install` download a rice to build a
+# 3 MB binary. The cost is that `cargo test` on the crates.io tarball cannot run the
+# tests that use it as a fixture; `git clone` is where those belong.
+exclude = ["example/"]
 
 [dependencies]
 anyhow = "1.0.104"
