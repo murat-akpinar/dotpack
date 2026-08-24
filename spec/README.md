@@ -121,7 +121,9 @@ The rules an author is entitled to assume, whatever tool the receiver uses:
    Running a foreign `install.sh` instead is exactly what this format exists to end.
 8. **`assets` are copied and nothing more.** Never linked, never removed on the way out,
    and never written over a file that is already at the dest — that dest is a directory
-   the user owns, so a bundle shipping `forest.png` cannot cost anyone theirs.
+   the user owns, so a bundle shipping `forest.png` cannot cost anyone theirs. The file
+   left alone is reported when it is not the bundle's own copy; after the first
+   activation every asset is already in place, and saying so each time is noise.
 
 ---
 

@@ -90,9 +90,24 @@ pub fn plan(bundle: &Bundle, options: Options) -> Result<Plan> {
     };
 
     let packages = pkg::plan(&bundle.manifest)?;
+    let assets = bundle.assets()?;
 
     let mut warnings = bundle.manifest.validate()?;
     warnings.extend(no_terminal(&packages));
+    // A user reading `copy: lake.png` takes the bundle's other wallpapers as coming too.
+    // The one that is not coming is the one already spoken for, and this is where that
+    // has to be said — the summary is after the decision.
+    warnings.extend(
+        assets
+            .iter()
+            .filter(|(source, dest)| write::in_the_way(source, dest))
+            .map(|(_, dest)| {
+                format!(
+                    "{} is already there — the bundle's copy is not written over it",
+                    paths::contract(dest)
+                )
+            }),
+    );
     warnings.extend(external_note(&bundle.manifest));
     warnings.extend(machine_warnings(bundle)?);
     let (hooks, hook_warning) = hooks(bundle, &ledger, options);
@@ -105,8 +120,7 @@ pub fn plan(bundle: &Bundle, options: Options) -> Result<Plan> {
             .iter()
             .map(|(l, _)| paths::contract(&l.target))
             .collect(),
-        copy: bundle
-            .assets()?
+        copy: assets
             .iter()
             .filter(|(_, dest)| !dest.exists())
             .map(|(_, dest)| paths::contract(dest))

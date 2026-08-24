@@ -128,6 +128,19 @@ fn assets_are_copied_and_outlive_the_switch() {
         lake.exists(),
         "a switch away removes the links and leaves the assets"
     );
+
+    // Found on the second machine: every asset we placed ourselves came back as "already
+    // there" on the next switch. A bundle with forty wallpapers reports forty non-events
+    // from then on, and only the collision is worth a line.
+    let again = env.output(&["use", "wallpapers", "-y"]);
+    assert!(
+        !again.contains("Pictures/wallpapers/lake.png"),
+        "the bundle's own copy is not reported back at it:\n{again}"
+    );
+    assert!(
+        again.contains("Pictures/wallpapers/forest.png"),
+        "but the file that is genuinely the user's still is:\n{again}"
+    );
 }
 
 #[test]
@@ -318,6 +331,14 @@ impl TestEnv {
             String::from_utf8_lossy(&out.stdout),
             String::from_utf8_lossy(&out.stderr)
         );
+    }
+
+    /// `run`, but handing back what was printed — for the assertions that are about the
+    /// report rather than the filesystem.
+    fn output(&self, args: &[&str]) -> String {
+        let out = self.try_run(args);
+        assert!(out.status.success(), "dotpack {args:?} failed");
+        String::from_utf8_lossy(&out.stdout).into_owned()
     }
 
     fn read_link(&self, relative: &str) -> Option<PathBuf> {

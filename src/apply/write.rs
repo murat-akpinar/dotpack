@@ -106,18 +106,39 @@ pub fn write_back(detached: &Path, into: &Path) -> Result<Vec<String>> {
     Ok(Vec::new())
 }
 
+/// Is something of the **user's** sitting at `dest`? Identical content is what the second
+/// activation of the same bundle looks like, and saying so would put one line per asset
+/// in every switch from then on — a bundle with forty wallpapers would report forty
+/// non-events, which is how a summary stops being read.
+///
+/// Reads both files. A wallpaper directory is a few MB next to what pacman does in the
+/// same switch, and the alternative is a ledger for files nothing ever removes.
+pub fn in_the_way(source: &Path, dest: &Path) -> bool {
+    match (std::fs::metadata(source), std::fs::metadata(dest)) {
+        (Ok(s), Ok(d)) => {
+            s.len() != d.len() || std::fs::read(source).ok() != std::fs::read(dest).ok()
+        }
+        // Nothing at the dest is nothing in the way; an unreadable source is the copy's
+        // problem to report, with the error it actually got.
+        _ => false,
+    }
+}
+
 /// `assets` land wherever the manifest says, and they are **copied, never linked** —
 /// `dest` is a directory the user owns (`~/Pictures/wallpapers`), and adopting it into a
 /// bundle would be an unpleasant surprise. For the same reason an existing file is never
-/// overwritten: it is reported and left where it is (spec/manifest.md).
+/// overwritten: it is left where it is, and reported when it is somebody's own file
+/// rather than this bundle's (spec/manifest.md).
 pub fn copy_assets(assets: &[(PathBuf, PathBuf)], notes: &mut Vec<String>) -> Result<usize> {
     let mut copied = 0;
     for (source, dest) in assets {
         if dest.exists() {
-            notes.push(format!(
-                "{} is already there — the bundle's copy was not written over it",
-                crate::paths::contract(dest)
-            ));
+            if in_the_way(source, dest) {
+                notes.push(format!(
+                    "{} is already there — the bundle's copy was not written over it",
+                    crate::paths::contract(dest)
+                ));
+            }
             continue;
         }
         std::fs::create_dir_all(dest.parent().expect("a file has a parent"))?;

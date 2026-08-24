@@ -627,7 +627,8 @@ bundle in the repo has an asset, so nothing was broken, and a receiver of a bund
 *did* have one would have been told in the plan that the wallpapers were coming and then
 not got them.
 
-Two things came out of writing it that the spec had implied without saying:
+Three things came out of writing it, and **the third only showed up on the second
+machine** — the one where the same bundle gets switched to twice:
 
 - **The spec had already answered "when".** Assets are never removed and never written
   over; both together mean copying on every activation is copying once. The question in
@@ -639,6 +640,15 @@ Two things came out of writing it that the spec had implied without saying:
   somebody's picture into a backup directory to make room for a bundle's would be the
   unpleasant surprise the field's own note warns about. The test asserts the backup
   directory stays empty, not just that the file survives.
+- **"Not overwritten" was being said about our own files.** The first version reported
+  every skipped asset, so the second switch to a bundle reported each one back at the
+  user — forty wallpapers would be forty non-events on every switch from then on, which
+  is the same failure as the 38 reference findings that became 13. A skip is only worth a
+  line when the file at the dest is **not** the bundle's copy, which is a content
+  comparison and no ledger; and it belongs in the plan as well, because somebody reading
+  `copy: lake.png` takes the bundle's other wallpapers as coming too. Nothing in the test
+  suite could have found this: it needs the same bundle activated twice, which is what a
+  lab HOME on a second box is for.
 
 ---
 
