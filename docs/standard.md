@@ -164,18 +164,34 @@ post` has to be a function of the manifest and nothing else:
 |---|---|
 | Order | the Role Dictionary's order, group by group. Unknown roles last, alphabetically — `calculator` is the last line for exactly that reason |
 | Label | the role's display name (`font_terminal` → part of the merged **Fonts** line) |
-| Value | `name` if present, otherwise `pkg`, **verbatim** — package names are lowercase and stay lowercase. Nothing is title-cased; `starship` is what you type to install it |
+| Value | `name` if present, otherwise `pkg`, otherwise `path` (that is what makes `wallpaper` a line), **verbatim** — package names are lowercase and stay lowercase. Nothing is title-cased; `starship` is what you type to install it |
 | `version` | appended bare, operator stripped: `">=0.48"` → `kitty 0.48` |
 | `theme` + `from` | in parens: `theme, from` — then `— note` if there is one |
 | `url` | appended after an em dash. Never fetched, here or anywhere |
 | Empty roles | omitted entirely; no `**Browser:** —` filler |
+| Line breaks | entries are **filled greedily to 80 columns**, ` · ` between them. A long entry pushes the next role onto its own line; that, and nothing else, is why the block above breaks where it does. `**Bar:**` is 78 columns on its own, so `**Terminal:**` starts a new line |
+
+The three formats differ in markup only — same roles, same order, same values:
+
+| `--format` | Shape |
+|---|---|
+| `reddit` (default) | the block above: filled lines, `**Label:** value` separated by ` · ` |
+| `markdown` | one `- **Label:** value` bullet per role. This is what the generated `README.md` carries |
+| `plain` | `Label: value`, one per line, no markup — for anywhere that renders none |
+
+The list is copied to the clipboard with `wl-copy`, then `xclip`; neither present is not an
+error, the text is on stdout either way.
 
 An earlier version of this block title-cased some values and not others (`Rofi` but
 `polybar`), dropped `wallpaper` and `calculator`, and used neither the dictionary order nor
 any other. That is fine in a mock-up and fatal in a spec: [TODO.md](../TODO.md) M3 is
 judged by whether the `[components]` block above renders to exactly this.
 
-The same content is also written into `README.md` during `collect`.
+The same renderer writes the bundle's own `README.md` during `collect`: the markdown list,
+the `dotpack use` line derived from `homepage`, the package counts, the services that get
+enabled, and a **By hand** section listing every component carrying a `url`. It is written
+once and never regenerated — a generated file the tool keeps rewriting is a file nobody is
+allowed to improve.
 
 The logic is simple: **people already have to write this list by hand.** If the tool
 produces it, filling in the format becomes a gain rather than a chore. Adoption comes from
@@ -190,24 +206,40 @@ The output format is chosen with `--format reddit|markdown|plain`.
 A package → role table. Roughly 40 lines, written by hand, does not need to be exhaustive:
 
 ```
-i3 sway hyprland niri river          → wm
-picom hyprland                       → compositor
-polybar waybar ags quickshell eww    → bar
-kitty alacritty foot wezterm ghostty → terminal
-zsh fish bash nushell                → shell
-starship oh-my-posh                  → prompt
-rofi wofi fuzzel tofi                → launcher
-dunst mako swaync                    → notifications
-i3lock swaylock hyprlock             → lockscreen
-yazi ranger nautilus thunar dolphin  → filemanager
-neovim helix emacs micro             → editor
-fastfetch neofetch macchina          → fetch
-feh swww hyprpaper swaybg            → wallpaper
+hyprland sway i3 niri river               → wm
+hyprland sway picom                       → compositor
+waybar polybar quickshell ags eww         → bar
+kitty alacritty foot wezterm ghostty      → terminal
+fish zsh nushell bash                     → shell
+starship oh-my-posh                       → prompt
+rofi wofi fuzzel tofi                     → launcher
+dunst mako swaync                         → notifications
+hyprlock swaylock i3lock                  → lockscreen
+nautilus thunar dolphin yazi ranger       → filemanager
+neovim helix emacs micro                  → editor
+fastfetch neofetch macchina               → fetch
+swww awww hyprpaper swaybg mpvpaper feh   → wallpaper
+matugen pywal wallust                     → colorscheme
+cliphist clipman copyq                    → clipboard
+hypridle swayidle                         → idle
+grim grimblast flameshot maim             → screenshot
+firefox chromium brave                    → browser
+ncmpcpp cmus mpd                          → music
 ```
 
-A matching package is assigned its role, the rest stay role-less. The `gtk_theme`,
+**Each row is in preference order**, and that order is the outer loop: a bundle carrying
+both `waybar` and `quickshell` gets `bar = "waybar"`. `hyprland` is in two rows on purpose
+— on wayland the compositor *is* the WM.
+
+A matching package is assigned its role, the rest stay role-less. The name written is the
+**package's**, AUR suffix and all: `colorscheme = "matugen-bin"`, because a `pkg` that
+`packages` does not list is the one thing `validate()` warns about, and a generator that
+warns about its own output is broken. The suffix comes off for *matching* only, and only
+`-git` / `-bin` — a looser rule pulls `zen-browser` into `zen`. The `gtk_theme`,
 `icons`, `cursor` and `font_*` roles come from the config scan (`gtk-3.0/settings.ini`,
-`fc-match` — [design.md §5.2](./design.md)). The user corrects them in the TUI.
+`fc-match` — [design.md §5.2](./design.md)), and **they win**: the table only fills roles
+the scan left empty, because a name read out of the config is better evidence than a name
+in a package list. The user corrects them in the TUI.
 
 **For these four roles, prefer `pkg` over `url` harder than intuition suggests.** They are
 the roles people install by hand, so `pacman -Qoq` reports no owner and the obvious

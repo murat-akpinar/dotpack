@@ -32,6 +32,10 @@ pub fn write_bundle(collected: &Collected, out: &Path, git: bool) -> Result<Vec<
     }
 
     std::fs::write(out.join("dotfiles.toml"), collected.manifest.to_toml()?)?;
+    std::fs::write(
+        out.join("README.md"),
+        crate::post::readme(&collected.manifest),
+    )?;
 
     let mut notes = Vec::new();
     if git && !out.join(".git").exists() && !init_repo(out) {

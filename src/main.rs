@@ -3,6 +3,7 @@ mod bundle;
 mod manifest;
 mod paths;
 mod pkg;
+mod post;
 mod scan;
 
 use std::io::Write;
@@ -70,7 +71,12 @@ enum Command {
         discard: bool,
     },
     /// Render a bundle's `components` as a shareable list
-    Post { name: Option<String> },
+    Post {
+        /// A name in the store or a local path. Default: the active bundle
+        name: Option<String>,
+        #[arg(long, value_enum, default_value = "reddit")]
+        format: post::Format,
+    },
     /// Remove a bundle from the store
     Rm { name: String },
 }
@@ -93,7 +99,7 @@ fn main() -> Result<()> {
             no_git,
             yes,
         }) => collect(&dirs, out, name, wm, &ignore, !no_git, yes),
-        Some(Command::Post { .. }) => bail!("post: M3"),
+        Some(Command::Post { name, format }) => post(name, format),
         Some(Command::Add { .. }) => bail!("add: M4"),
         None => bail!("the TUI is M6 — use a subcommand for now (`dotpack --help`)"),
     }
@@ -308,6 +314,37 @@ fn counts(collected: &scan::Collected) -> Vec<(String, usize)> {
 }
 
 // --- collect end ---
+
+// --- post start ---
+
+fn post(name: Option<String>, format: post::Format) -> Result<()> {
+    let bundle = match name {
+        // A path renders without the bundle being in the store: the manifest is the only
+        // input, so there is nothing to install first.
+        Some(target) if target.contains('/') || Path::new(&target).is_dir() => {
+            Bundle::open(std::fs::canonicalize(target)?)?
+        }
+        Some(target) => Bundle::open(paths::store().join(target))?,
+        None => {
+            let active = Ledger::load()?
+                .active
+                .ok_or_else(|| anyhow::anyhow!("nothing is active — `dotpack post <name>`"))?;
+            Bundle::open(paths::store().join(active))?
+        }
+    };
+    for warning in bundle.manifest.validate()? {
+        eprintln!("warning: {warning}");
+    }
+
+    let text = post::render(&bundle.manifest, format);
+    println!("{text}");
+    if post::copy(&text) {
+        println!("\n[copied to clipboard]");
+    }
+    Ok(())
+}
+
+// --- post end ---
 
 fn list() -> Result<()> {
     let ledger = Ledger::load()?;

@@ -4,14 +4,18 @@ Bundle your dotfiles **together with the packages they need**, install them with
 command, and switch between rices instantly.
 
 ```bash
-dotpack use github:caelestia-dots/shell   # fetch + activate
-dotpack use -                             # didn't like it, go back
-dotpack collect                           # package up your own setup
+dotpack collect                # scan this machine, write a bundle
+dotpack use ~/dotfiles         # activate it: links, packages, services
+dotpack use -                  # didn't like it, go back
+dotpack post                   # the r/unixporn list, generated from the manifest
 ```
 
 Arch Linux · hyprland / sway / i3 · Rust + ratatui
 
-> **Status: design phase. No code yet.**
+> **Status: the CLI works.** `collect`, `use`, `use -`, `ls`, `sync`, `rm` and `post` are
+> implemented and tested (M0–M3 in [TODO.md](TODO.md)). Still to come: `use
+> github:user/repo` and hooks (M4), `external` mode (M5), the TUI (M6). Until M4 a bundle
+> is added by path — `git clone` it yourself, then `dotpack use ./that-directory`.
 
 ## The problem
 
@@ -34,6 +38,7 @@ launches and which files it includes, resolves those to packages, and writes a
 ```
 awesome-rice/
 ├── dotfiles.toml        # package lists + a few settings
+├── README.md            # generated from the manifest, then yours to edit
 ├── config/  → ~/.config/
 ├── home/    → ~/
 ├── local/   → ~/.local/
@@ -56,6 +61,11 @@ yay    = ["matugen-bin"]
 `use` activates a bundle by pointing symlinks at it, so switching rices is instant.
 A link ledger records exactly what was placed, so switching away is clean and your
 own pre-existing configs are backed up rather than clobbered.
+
+`post` renders the manifest's `[components]` as the list every r/unixporn comment already
+has — WM, bar, terminal, fonts, themes, who you took the theme from — and copies it to the
+clipboard. `collect` writes the same list into the bundle's `README.md`. That is the whole
+adoption argument: people write this list by hand anyway, so the format should produce it.
 
 Two things it takes seriously because they are the usual ways a shared rice arrives
 broken: **every referenced file has to ship** — a `kitty.conf` whose

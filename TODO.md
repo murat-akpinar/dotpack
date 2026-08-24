@@ -1,7 +1,7 @@
 # Work Plan
 
-The design is done (`docs/`), there is no code. This file says in which order it gets
-written.
+The design is done (`docs/`). This file says in which order the code gets written, and
+what each milestone actually turned out to be worth. **M0–M3 are done**; M4 is next.
 
 **Ordering principle:** every milestone leaves behind **something usable on its own**. Not
 a half-finished layer, a working tool. When M1 is done it has to produce value for a single
@@ -297,14 +297,41 @@ is the part `collect` is responsible for.
 The adoption lever. People already have to write this list by hand; if the tool produces
 it, filling in the format becomes a gain rather than a chore.
 
-- [ ] `scan/roles.rs` — package → role table (~40 lines), fill in `components`
-- [ ] `post.rs` — `components` → a shareable list
-- [ ] `post.rs` — `--format reddit|markdown|plain`
-- [ ] `post.rs` — copy to clipboard (`wl-copy` / `xclip`, whichever exists)
-- [ ] The same renderer writes `README.md` during `collect`
+- [x] `scan/roles.rs` — package → role table (~40 lines), fill in `components`
+- [x] `post.rs` — `components` → a shareable list
+- [x] `post.rs` — `--format reddit|markdown|plain`
+- [x] `post.rs` — copy to clipboard (`wl-copy` / `xclip`, whichever exists)
+- [x] The same renderer writes `README.md` during `collect`
 
 **Done means:** the `[components]` block in `docs/standard.md` produces that document's
 list exactly.
+
+✅ Done, and *exactly* is the word: the acceptance sentence is a `#[test]` comparing
+`render()` against that document's block as one string. It passes.
+
+**The spec was missing its own line-breaking rule**, and writing the renderer is what
+found that. The rules table said what a value looks like and in what order roles come, but
+not why `**Bar:**` sits alone while `**Terminal:**` and `**Shell:**` share a line. One
+rule explains all eleven breaks in the block: **fill greedily to 80 columns.** It is in
+`standard.md` now — a spec whose own example cannot be reproduced from it is not a spec.
+
+Three smaller calls, recorded because they are user-visible:
+
+- **`post` takes a path, not just a store name.** `dotpack post example` renders this
+  repo's bundle without installing it. The manifest is the only input, so there is nothing
+  to activate first, and it makes the command usable on a bundle you are still writing.
+- **The generated `README.md` is written once and never regenerated.** It carries the
+  markdown list, a `dotpack use` line derived from `homepage`, the package counts, the
+  services and a **By hand** section for every `url` component. A file the tool rewrites is
+  a file nobody is allowed to improve — and the point of it is to be improved.
+- **The role table only fills what the config scan left empty.** `gtk_theme`, `icons`,
+  `cursor` and the fonts come from `settings.ini` and `fc-match`; a name read out of the
+  config beats a name matched in a package list.
+
+Not done here and not pretending to be: **correcting a role is editing the manifest** until
+the TUI (M6). And `roles::fill` runs at collect time only — it does not backfill an
+existing bundle, because rewriting someone's hand-written manifest is not a thing a `post`
+command should do.
 
 ---
 

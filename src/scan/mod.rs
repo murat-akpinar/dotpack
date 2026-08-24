@@ -4,6 +4,7 @@
 pub mod deps;
 pub mod fonts;
 pub mod refs;
+pub mod roles;
 pub mod secrets;
 pub mod wm;
 
@@ -191,6 +192,10 @@ pub fn collect(
     packages.yay.dedup();
     packages.paru.sort();
     packages.paru.dedup();
+
+    // Last, so the config's own evidence — the font and theme scans — wins over a name
+    // in a package list.
+    roles::fill(&mut components, &packages);
 
     Ok(Collected {
         suggestions,

@@ -19,7 +19,7 @@ The verbs:
 | `dotpack use <name>` | Makes a bundle **active** — this is the rice switch |
 | `dotpack ls` | Bundles in the local store, and which one is active |
 | `dotpack sync` | Repairs the active bundle — writes a link an application replaced with a real file back into the bundle, then re-links |
-| `dotpack post <name>` | Renders `components` as a shareable list ([standard.md](./standard.md)) |
+| `dotpack post [name]` | Renders `components` as a shareable list and copies it — `--format reddit\|markdown\|plain`, and the name may be a path. Defaults to the active bundle ([standard.md](./standard.md)) |
 | `dotpack rm <name>` | Removes a bundle from the store. The active one has to be deactivated first |
 
 `add` + `use` in one step: `dotpack use github:caelestia-dots/shell`

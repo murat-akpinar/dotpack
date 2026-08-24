@@ -38,7 +38,7 @@ example/
 ```
 
 `config/hypr/scripts/` keeps its executable bits — 14 of them. That is the
-invariant behind `fs::copy` in `apply.rs`; losing one breaks the rice silently.
+invariant behind `fs::copy` in `apply/write.rs`; losing one breaks the rice silently.
 
 ## What was left out, and why
 
@@ -56,10 +56,17 @@ machine's two monitors in it — **edit it after installing.** `ignore` is a
 collect-time filter, not an install-time one; a directory link has no per-file
 granularity to skip anything with. `docs/design.md` §7.
 
-So this is a real bundle, deliberately trimmed. When `collect` exists it will write
-the `dotfiles.toml` instead of it being assembled by hand — but not this exact tree:
-what is in `config/` came from ticking directories on the wizard's step 2, and those
-ticks are a human's call, here and afterwards.
+So this is a real bundle, deliberately trimmed. `collect` writes a `dotfiles.toml` like
+this one now (M2) — but not this exact tree: what is in `config/` came from ticking
+directories on the wizard's step 2, and those ticks are a human's call, here and
+afterwards. Run against this machine it agrees with the hand-written manifest on the
+awkward entries and beats it on two: it finds `config/kitty/catppuccin.conf`, which the
+hand-written version forgot, and prefers `matugen` to the local `matugen-bin`.
+
+**This `README.md` is hand-written, and a collected bundle's is not.** `collect` generates
+one from the manifest — the `[components]` list, the install line, the package counts, the
+manual steps. `dotpack post example` prints the same list for a reddit comment. This file
+is an argument about the format instead, which is not something a generator can write.
 
 ## What the collection turned up
 
@@ -175,8 +182,8 @@ written in the format; the manifest now produces **zero** warnings.
 ## What this bundle still needs
 
 The project's acceptance test is *"this installs the rice without `install.sh`"*
-(`TODO.md`). The tool is not written yet, but the bundle's own gaps are known and
-independent of it:
+(`TODO.md`). `dotpack use example` places every file and package this bundle declares
+today; what is missing is bundle *content*, and it is missing independently of the tool:
 
 | Missing | Why it matters | Blocked on |
 |---|---|---|

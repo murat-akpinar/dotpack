@@ -9,9 +9,12 @@ them in one command, and switches between rices by re-pointing symlinks.
 
 Rust + ratatui · Arch only · hyprland / sway / i3.
 
-**Currently design-phase: `docs/` is written, `src/` does not exist yet.** Read
+**M0–M3 are done: switching, `collect`, and `post` + the generated README all work.**
+M4 (`add github:…`, hooks) is next; the TUI is M6 and `src/tui/` does not exist yet. Read
 `docs/design.md` before proposing any structure, and `docs/real-world.md` for what
 real shared rices actually look like (several design rules come from that teardown).
+`TODO.md` is the running score: each finished milestone carries a note on what it cost and
+what it got wrong.
 
 **Everything in this repo is written in English** — docs, filenames, code, comments,
 commit messages. The user writes in Turkish; the files do not.
