@@ -465,11 +465,18 @@ confirmation, which is the only reason a bundle may do any of it.
 ## What this bundle still needs
 
 The project's acceptance test is *"this installs the rice without `install.sh`"*
-(`TODO.md`). What is left is one thing, and it is not a format problem:
+(`TODO.md`), and it has now been run: a second Arch machine, its own `$HOME`, a reboot,
+and the bar came up. `install.sh` is 1898 lines doing 44 things; what the bundle does not
+do is three of them, and only the first is the bundle's own gap:
 
 | Missing | Why it matters | Blocked on |
 |---|---|---|
 | `assets/wallpapers/` + an `[[assets]]` entry | `install.sh` clones a wallpaper repo; `awww` starts with nothing to show, and matugen has nothing to take colours from | whose wallpapers. The 43 on this machine are downloads of unknown provenance, and a bundle that redistributes them is a licensing problem, not a packaging one |
+| three AUR packages | `matugen-bin`, `swayosd-git`, `networkmanager-dmenu-git` — the colour pipeline and the volume OSD | **nothing, and deliberately.** `install.sh` builds `yay-bin` on your machine to get them; an installer that installs a package manager to install packages is one of the things this project exists not to do. The plan names the three and says to install a helper |
+| `pipewire-jack` | conflicts with an installed `jack2` | **the user, on purpose.** `install.sh` runs `pacman -Rdd jack2` to clear it. Packages are never removed here (invariant 3), so the batch falls back to one transaction per package and this one is reported by name |
+
+The last two are the acceptance test's real answer: it does install the rice, and where it
+stops is exactly where `install.sh` did something to the machine that nobody asked it to.
 
 The manifest already has the field for it; `spec/manifest.md` shows the entry. Until then
 the receiver puts images in `~/Pictures/Wallpapers` themselves — which is the honest state

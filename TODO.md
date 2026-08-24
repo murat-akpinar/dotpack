@@ -672,10 +672,8 @@ command" — did not say how to install *it*.
   `user.email` inline to every `git commit` it makes. None of that was written for
   packaging; it is what invariant 14 and the stub list already bought.
 
-Still not done, and both are the author's call rather than the tool's: **`main` is 22
-commits ahead of `origin`**, and a `-git` package builds what is on GitHub — so until it
-is pushed, `makepkg -si` installs a dotpack without any of M7 in it. There is no tag
-either; a versioned `dotpack` package wants one.
+Both of the things this section used to end on — nothing pushed, no tag — are done, and
+what is left is written under 0.1.0 below.
 
 ### Looking at the screen
 
@@ -723,6 +721,39 @@ right needs eyes. The VM's own EGL could not create a context at all until
 `LIBGL_ALWAYS_SOFTWARE=1` — worth writing down that a black screen took three causes to
 clear, and none of them was dotpack: a dead greeter holding DRM master, the wrong VT in
 the console window, and VMware SVGA's GL.
+
+### 0.1.0, out
+
+Four places, one version:
+
+| | |
+|---|---|
+| [crates.io](https://crates.io/crates/dotpack) | 46 files, 179.6 KiB compressed — `cargo install dotpack` |
+| [the release](https://github.com/murat-akpinar/dotpack/releases/tag/v0.1.0) | notes from the changelog's own 0.1.0 section |
+| `origin/main` | 40 commits and an annotated `v0.1.0` |
+| `dotpack-example` | subtree push, so `use github:…` clones the fixes rather than the week-old tree |
+
+Three things the manifest needed before crates.io would take it, and the first two are not
+optional at all:
+
+- **`description` and `license`.** A publish without them is refused, which is the
+  registry making the same argument this project makes about `dotfiles.toml`: metadata
+  that a human has to read is metadata the format should require.
+- **`rust-version = "1.88"`**, from reading the code rather than guessing: `apply/mod.rs`
+  uses a let-chain, stable in edition 2024 from 1.88. Without the line an older toolchain
+  fails on a parse error instead of on "your rust is too old".
+- **`exclude = ["example/"]`** — 6.2 MB of the 6.8 MB, and already published on its own.
+  179 KiB instead. The cost is stated in the file where it is paid: the tests that use the
+  bundle as a fixture cannot run from the crates.io tarball, and `git clone` is where they
+  belong.
+
+`--dry-run` first, because a publish is the one thing in this whole project that cannot be
+undone — a version can be yanked, never replaced.
+
+**Deliberately not done, and both are one decision:** there is no AUR package and no
+versioned `PKGBUILD`. `dotpack-git` builds `main` and is the honest shape for a tool at
+0.1.0; a second recipe is a second thing to keep in step with the first, and going on the
+AUR is a promise to keep it there. Ask again at 0.2.0.
 
 ---
 
