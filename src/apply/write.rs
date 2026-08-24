@@ -1,4 +1,5 @@
-//! `write_bundle()` — collect's output.
+//! `write_bundle()` — collect's output — and `copy_assets()`, the one thing a switch
+//! copies instead of linking.
 //!
 //! It lives in `apply/` and not in a `collect.rs` for one reason: otherwise the
 //! one-writer invariant would be false the first time a bundle is created. `collect` is a
@@ -103,6 +104,28 @@ pub fn write_back(detached: &Path, into: &Path) -> Result<Vec<String>> {
             .with_context(|| format!("writing {} back into the bundle", file.display()))?;
     }
     Ok(Vec::new())
+}
+
+/// `assets` land wherever the manifest says, and they are **copied, never linked** —
+/// `dest` is a directory the user owns (`~/Pictures/wallpapers`), and adopting it into a
+/// bundle would be an unpleasant surprise. For the same reason an existing file is never
+/// overwritten: it is reported and left where it is (spec/manifest.md).
+pub fn copy_assets(assets: &[(PathBuf, PathBuf)], notes: &mut Vec<String>) -> Result<usize> {
+    let mut copied = 0;
+    for (source, dest) in assets {
+        if dest.exists() {
+            notes.push(format!(
+                "{} is already there — the bundle's copy was not written over it",
+                crate::paths::contract(dest)
+            ));
+            continue;
+        }
+        std::fs::create_dir_all(dest.parent().expect("a file has a parent"))?;
+        // `fs::copy` for the mode bits, as everywhere else (invariant 9).
+        std::fs::copy(source, dest).with_context(|| format!("copying {}", source.display()))?;
+        copied += 1;
+    }
+    Ok(copied)
 }
 
 /// The tool does not wrap git: this is the first commit and nothing else. Remotes and

@@ -88,6 +88,48 @@ fn a_to_b_and_back_is_a_round_trip() {
     assert_same(&before_anything, &env.snapshot(), "and back to nothing");
 }
 
+/// `assets` are **copied**, never linked, and a switch away leaves them where they are:
+/// `dest` is a directory the user owns, so nothing under it is adopted, overwritten or
+/// taken back (spec/manifest.md).
+#[test]
+fn assets_are_copied_and_outlive_the_switch() {
+    let env = TestEnv::new("assets");
+    let bundle = env.assets_bundle();
+
+    // Something of the user's, sitting on exactly the name an asset wants.
+    env.write("Pictures/wallpapers/forest.png", "the user's own picture\n");
+
+    env.run(&["use", bundle.to_str().unwrap(), "-y"]);
+    let lake = env.home.join("Pictures/wallpapers/lake.png");
+    assert_eq!(
+        std::fs::read_to_string(&lake).unwrap(),
+        "a lake\n",
+        "a directory asset lands file by file, under the declared dest"
+    );
+    assert!(!lake.is_symlink(), "copied, never linked");
+    assert_eq!(
+        std::fs::read_to_string(env.home.join("Documents/note.txt")).unwrap(),
+        "a single file asset\n",
+        "and a file src lands at the dest itself"
+    );
+    assert_eq!(
+        std::fs::read_to_string(env.home.join("Pictures/wallpapers/forest.png")).unwrap(),
+        "the user's own picture\n",
+        "an existing file is reported, not written over"
+    );
+    assert!(
+        !env.backups()
+            .any(|p| p.ends_with("Pictures/wallpapers/forest.png")),
+        "and not adopted either — an asset dest is nobody's to take"
+    );
+
+    env.run(&["use", "-", "-y"]);
+    assert!(
+        lake.exists(),
+        "a switch away removes the links and leaves the assets"
+    );
+}
+
 #[test]
 fn rm_refuses_while_the_bundle_is_active() {
     let env = TestEnv::new("rm-active");
@@ -160,6 +202,27 @@ impl TestEnv {
             ("home/.testrc", "export B=1\n"),
             ("local/bin/hello.sh", "#!/bin/sh\necho hello\n"),
             ("local/share/fonts/TestFont/x.ttf", "not really a font\n"),
+        ] {
+            let file = b.join(path);
+            std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+            std::fs::write(file, contents).unwrap();
+        }
+        b
+    }
+
+    /// A bundle whose interesting field is `assets`: a directory of them and a single
+    /// file beside it, with one ordinary config so the links still have work to do.
+    fn assets_bundle(&self) -> PathBuf {
+        let b = self.root.join("bundle-assets");
+        for (path, contents) in [
+            (
+                "dotfiles.toml",
+                "name = \"wallpapers\"\nwm = \"hyprland\"\n\n[[assets]]\nsrc  = \"assets/wallpapers\"\ndest = \"~/Pictures/wallpapers\"\n\n[[assets]]\nsrc  = \"assets/note.txt\"\ndest = \"~/Documents/note.txt\"\n",
+            ),
+            ("assets/wallpapers/lake.png", "a lake\n"),
+            ("assets/wallpapers/forest.png", "the bundle's forest\n"),
+            ("assets/note.txt", "a single file asset\n"),
+            ("config/kitty/kitty.conf", "font_size 12\n"),
         ] {
             let file = b.join(path);
             std::fs::create_dir_all(file.parent().unwrap()).unwrap();

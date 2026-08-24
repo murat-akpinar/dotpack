@@ -79,18 +79,34 @@ impl Bundle {
         Ok(out)
     }
 
-    /// `assets` are **copied**, never linked, so they are not part of `links()`.
+    /// `assets` are **copied**, never linked, so they are not part of `links()` — and
+    /// they are copied on **every** activation, over nothing that is already there.
     ///
-    /// ponytail: no caller yet. design.md §4.2's sequence has no step that copies them
-    /// and no bundle in the repo has any, so *when* they are copied — first activation
-    /// only, or every switch — is an open question in TODO.md Phase 0.
-    #[allow(dead_code)]
-    pub fn assets(&self) -> Vec<(PathBuf, PathBuf)> {
-        self.manifest
-            .assets
-            .iter()
-            .map(|a| (self.root.join(&a.src), paths::expand(&a.dest)))
-            .collect()
+    /// That is the answer to TODO.md Phase 0's open question, and it is the one that
+    /// needs no state: a switch never removes an asset (spec/manifest.md), so the second
+    /// activation finds every file present and copies none of it. A `hooks_ran`-style
+    /// ledger field would buy exactly one different case — a file the user deleted — and
+    /// there, putting the bundle back is what re-running `use` means everywhere else in
+    /// this tool.
+    ///
+    /// A directory `src` expands to its files, so the copy has one shape to handle and
+    /// `dest` mirrors the tree. Empty in `external` mode, for [`Self::links`]' reason.
+    pub fn assets(&self) -> Result<Vec<(PathBuf, PathBuf)>> {
+        let mut out = Vec::new();
+        if self.manifest.mode == Mode::External {
+            return Ok(out);
+        }
+        for asset in &self.manifest.assets {
+            let (source, dest) = (self.root.join(&asset.src), paths::expand(&asset.dest));
+            if source.is_dir() {
+                for rel in files_under(&source)? {
+                    out.push((source.join(&rel), dest.join(&rel)));
+                }
+            } else {
+                out.push((source, dest));
+            }
+        }
+        Ok(out)
     }
 }
 

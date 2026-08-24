@@ -504,6 +504,7 @@ mod tests {
                 name: "b".into(),
                 packages: Default::default(),
                 place: vec!["~/.config/hypr".into()],
+                copy: Vec::new(),
                 remove: Vec::new(),
                 detached: Vec::new(),
                 services: Vec::new(),

@@ -1,8 +1,8 @@
 # Work Plan
 
 The design is done (`docs/`). This file says in which order the code gets written, and
-what each milestone actually turned out to be worth. **M0–M6 are done**; M7 (release prep)
-is what is left.
+what each milestone actually turned out to be worth. **M0–M7 are done**, and Phase 0's
+last open question with them.
 
 **Ordering principle:** every milestone leaves behind **something usable on its own**. Not
 a half-finished layer, a working tool. When M1 is done it has to produce value for a single
@@ -51,12 +51,19 @@ tool behind.
 
 ## Phase 0 — Answer before writing code
 
-- [ ] **When are `assets` copied** — first activation only, or every switch? `design.md`
-      §4.2's thirteen steps have no asset step at all, and no bundle in the repo has one.
-      `bundle::assets()` maps the paths and nothing calls it (M1)
+All answered. Recorded here so they stop being re-asked:
 
-
-Answered, recorded here so they stop being re-asked:
+- **When are `assets` copied** → **every activation, over nothing already there.** The two
+  rules the spec already had make the question smaller than it looks: an asset is never
+  removed on the way out, and an existing file at the dest is reported rather than
+  overwritten. So the second activation finds every file present and copies none of it,
+  and "first activation only" differs in exactly one case — a file the user deleted —
+  which a `hooks_ran`-style ledger field would have bought at the price of a ledger field.
+  Re-running `use` to put a bundle back is what every other half of this tool already
+  means. `assets` is now step 10 of §4.2 and step 6 of the switch, `bundle::assets()`
+  expands a directory `src` to its files so the copy has one shape, and the dest is never
+  backed up or adopted the way a config in the way of a link is: `~/Pictures` is the
+  user's, not any bundle's.
 
 **The four that shaped M1:**
 
@@ -118,8 +125,6 @@ Answered, recorded here so they stop being re-asked:
 - **git URLs in v1** → yes, `add`/`use` take them (M4).
 - **`README.md`** → `collect` generates it, from the same renderer as `post` (M3).
 
-One question is left open — when `assets` are copied — and it is M1's, still waiting for a
-bundle that has any.
 **This is the only list** — the per-document "Open Decisions" sections are gone, because
 keeping five of them is how three of these came to be answered elsewhere without anyone
 striking them out.
@@ -504,6 +509,7 @@ one outcome is a keymap that has to be remembered twice.
 - [x] Test on a clean user with no helper installed
 - [x] Publish an example bundle repo — the reference people will look at
 - [x] Publish the spec as a document separate from the tool — `spec/`
+- [x] Close Phase 0's last question — `assets` are copied, and by something
 
 ### The second machine
 
@@ -611,6 +617,28 @@ carries all of them; the ones that changed the tool or the format:
 nothing to show and matugen has nothing to take colours from. The 43 images on this machine
 are downloads of unknown provenance; redistributing them is a licensing question, and the
 `[[assets]]` field is already there for whoever can answer it.
+
+### The field nothing wrote
+
+`assets` had been specified in full since M0 and implemented nowhere: `bundle::assets()`
+mapped the paths, carried an `#[allow(dead_code)]`, and no step in either sequence copied
+anything. The reason it survived that long is the reason it was cheap to finish — no
+bundle in the repo has an asset, so nothing was broken, and a receiver of a bundle that
+*did* have one would have been told in the plan that the wallpapers were coming and then
+not got them.
+
+Two things came out of writing it that the spec had implied without saying:
+
+- **The spec had already answered "when".** Assets are never removed and never written
+  over; both together mean copying on every activation is copying once. The question in
+  Phase 0 read like a choice between two behaviours and was a choice between one
+  behaviour and one ledger field.
+- **An asset dest is not a link target, and must not be treated as one.** The backup and
+  adopt path exists because a link *takes over* `~/.config/hypr`. `~/Pictures/wallpapers`
+  is never taken over, so a file already there is left where it is and reported — moving
+  somebody's picture into a backup directory to make room for a bundle's would be the
+  unpleasant surprise the field's own note warns about. The test asserts the backup
+  directory stays empty, not just that the file survives.
 
 ---
 

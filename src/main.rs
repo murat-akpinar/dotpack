@@ -234,6 +234,7 @@ fn show(plan: &apply::Plan) {
     for (label, list) in [
         ("role", &plan.roles),
         ("link", &plan.place),
+        ("copy", &plan.copy),
         ("unlink", &plan.remove),
         ("detached", &plan.detached),
         ("service", &plan.services),

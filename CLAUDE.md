@@ -12,9 +12,10 @@ Rust + ratatui · Arch only · hyprland / sway / i3.
 **M0–M6 are done: switching, `collect`, `post` + the generated README, sharing —
 `use github:user/repo` clones, plans, warns and runs the bundle's hooks — `external` mode,
 and the TUI.** `dotpack` with no arguments opens `src/tui/`; every screen calls the same
-function the CLI calls. M7 is in progress: sway, i3 and a helper-less machine were tested
-on a second box, and the format now lives in `spec/` on its own — what is left is
-publishing the example bundle. **`spec/` is the format and is normative; `docs/` is the
+function the CLI calls. **M7 is done too**: sway, i3 and a helper-less machine were tested
+on a second box, the format lives in `spec/` on its own, the example bundle is published at
+`murat-akpinar/dotpack-example`, and `assets` — specified since M0, implemented nowhere —
+are now copied. **`spec/` is the format and is normative; `docs/` is the
 tool's own thinking.** Read `docs/design.md` before proposing any structure, and
 `docs/real-world.md` for what real shared rices actually look like (several design rules
 come from that teardown).
@@ -94,6 +95,11 @@ link hides them. Hand-installed Nerd Fonts live in exactly that path (`real-worl
 
 Every directory created to place a link goes in the ledger and is removed on deactivation
 **if empty**. After anything lands under `~/.local/share/fonts`, run `fc-cache -f`.
+
+**`assets/` — copied, not linked, and not in the ledger.** They go where `dotfiles.toml`
+says, on every activation, over nothing already at the dest, and nothing removes them
+again. `~/Pictures/wallpapers` is the user's directory, so unlike a link target it is
+never backed up or adopted.
 
 ## Reference integrity
 

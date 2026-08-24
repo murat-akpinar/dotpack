@@ -119,6 +119,9 @@ The rules an author is entitled to assume, whatever tool the receiver uses:
    ignored file is broken for the receiver.
 7. **A directory without `dotfiles.toml` is not a bundle**, and is rejected as one.
    Running a foreign `install.sh` instead is exactly what this format exists to end.
+8. **`assets` are copied and nothing more.** Never linked, never removed on the way out,
+   and never written over a file that is already at the dest — that dest is a directory
+   the user owns, so a bundle shipping `forest.png` cannot cost anyone theirs.
 
 ---
 

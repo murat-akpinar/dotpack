@@ -170,10 +170,11 @@ written on top of the one the repo already has.
 7. pre-install hook    first activation only
 8. Install packages    pacman -S --needed  →  <helper> -S --needed
 9. Place links
-10. fc-cache -f        only if anything landed under ~/.local/share/fonts
-11. Services           systemctl --user enable --now <unit>
-12. post-install hook  first activation only
-13. Summary            installed / skipped / failed, backup path, manual steps (§5.2)
+10. Copy assets        assets[] only, and never over a file already at the dest
+11. fc-cache -f        only if anything landed under ~/.local/share/fonts
+12. Services           systemctl --user enable --now <unit>
+13. post-install hook  first activation only
+14. Summary            installed / skipped / failed, backup path, manual steps (§5.2)
 ```
 
 **Default decisions** (unless stated otherwise):
@@ -188,6 +189,12 @@ written on top of the one the repo already has.
   forces them.
 - `fc-cache -f` is not cosmetic: a font that just appeared under `~/.local/share/fonts` is
   invisible to every running application until the cache is rebuilt.
+- **Assets are copied on every activation, and no ledger remembers them.** Step 10 is
+  skipped file by file for anything already at the dest, and nothing ever removes an
+  asset again — so the second activation copies nothing, which is what a `hooks_ran`-style
+  field would have bought at the price of a field. Where a wallpaper goes is a directory
+  the *user* owns; that is also why it is never backed up or adopted the way a config file
+  in the way of a link is ([spec/manifest.md](../spec/manifest.md), `assets`).
 
 ### 4.3 use (rice switching)
 
@@ -198,10 +205,11 @@ Switching between bundles in the local store. Details: [profiles.md](./profiles.
 2. pre-install hook     first activation only
 3. Install the new bundle's missing packages   (old packages are NEVER removed)
 4. Remove the active bundle's symlinks, place the new ones
-5. fc-cache -f, if fonts moved
-6. Update services (old-but-not-new: `disable --now`)
-7. post-install hook    first activation only
-8. Reload the WM  (hyprctl reload / swaymsg reload / i3-msg reload)
+5. Copy assets, over nothing  (a switch away never takes them back either)
+6. fc-cache -f, if fonts moved
+7. Update services (old-but-not-new: `disable --now`)
+8. post-install hook    first activation only
+9. Reload the WM  (hyprctl reload / swaymsg reload / i3-msg reload)
 ```
 
 **The two hooks are not one step.** `pre_install` runs before the packages, `post_install`
@@ -614,7 +622,7 @@ one.** Counting the work assigned to it — ledger, backup adoption, link placem
 mkdirs record, the switch diff, backup restore, `fc-cache`, services, WM reload, hooks,
 `write_bundle()` — it carries twelve jobs where no other module carries more than eight.
 Split at design time this is free; split at 700 lines it is a day. `mod.rs` holds nothing
-but the sequences, so §4.2's thirteen steps and [profiles.md](./profiles.md)'s ten-step
+but the sequences, so §4.2's fourteen steps and [profiles.md](./profiles.md)'s eleven-step
 `use B` stay readable as the code that runs them.
 
 Being a directory also makes the one-writer rule checkable instead of merely stated:

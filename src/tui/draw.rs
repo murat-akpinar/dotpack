@@ -270,6 +270,7 @@ fn plan_screen(f: &mut Frame, plan: &Plan, scroll: u16, hook: Option<usize>, are
     for (title, mark, color, rows) in [
         ("ROLES", "·", Color::Reset, &plan.roles),
         ("FILES", "+", Color::Green, &plan.place),
+        ("", "↓", Color::Green, &plan.copy),
         ("", "−", Color::Yellow, &plan.remove),
         ("", "⚠", Color::Red, &plan.detached),
         ("SERVICES", "", Color::Reset, &plan.services),

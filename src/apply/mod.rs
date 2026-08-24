@@ -1,7 +1,7 @@
 //! **The only module that writes to disk.** Everything else reads and proposes.
 //!
-//! This file holds the sequences and nothing else, so that design.md §4.2's thirteen
-//! steps and profiles.md §3's ten-step switch stay readable as the code that runs them.
+//! This file holds the sequences and nothing else, so that design.md §4.2's fourteen
+//! steps and profiles.md §3's eleven-step switch stay readable as the code that runs them.
 
 pub mod backup;
 pub mod fetch;
@@ -28,6 +28,9 @@ pub struct Plan {
     pub name: String,
     pub packages: pkg::Plan,
     pub place: Vec<String>,
+    /// Asset destinations that are not there yet. Copied rather than linked, and never
+    /// removed on the way out — so this list shrinks to nothing after the first switch.
+    pub copy: Vec<String>,
     pub remove: Vec<String>,
     pub detached: Vec<String>,
     /// `+ unit` / `− unit`. On the way out of a bundle its units are **disabled**, and
@@ -101,6 +104,12 @@ pub fn plan(bundle: &Bundle, options: Options) -> Result<Plan> {
         place: place
             .iter()
             .map(|(l, _)| paths::contract(&l.target))
+            .collect(),
+        copy: bundle
+            .assets()?
+            .iter()
+            .filter(|(_, dest)| !dest.exists())
+            .map(|(_, dest)| paths::contract(dest))
             .collect(),
         remove: remove.iter().map(|e| e.target.clone()).collect(),
         detached,
@@ -292,7 +301,14 @@ pub fn switch(bundle: &Bundle, plan: Plan) -> Result<Summary> {
     }
     summary.linked = placed.len();
 
-    // 4. Fonts, then services, then the ledger, then the WM.
+    // 4. Assets, which are copied and not linked — and go in no ledger, because
+    //    nothing ever takes them away again.
+    let copied = write::copy_assets(&bundle.assets()?, &mut summary.notes)?;
+    if copied > 0 {
+        summary.notes.push(format!("{copied} copied from assets/"));
+    }
+
+    // 5. Fonts, then services, then the ledger, then the WM.
     let touched: Vec<PathBuf> = new.iter().map(|l| l.target.clone()).collect();
     system::refresh_fonts(&touched, &mut summary.notes)?;
 
@@ -305,7 +321,7 @@ pub fn switch(bundle: &Bundle, plan: Plan) -> Result<Summary> {
         .collect();
     system::services(wanted, &stale, &mut summary.notes);
 
-    // 5. post_install, after the links and the services — and only then does the ledger
+    // 6. post_install, after the links and the services — and only then does the ledger
     //    record that this bundle's hooks have run.
     run_hooks(&plan, "post_install", bundle, &mut summary.notes);
     if !plan.hooks.is_empty() && !ledger.hooks_ran.contains(&plan.name) {

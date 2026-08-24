@@ -170,19 +170,22 @@ new = the links B would produce
    - in both      → repoint the link at the new bundle
    - only in new  → place the link (if a real file is in the way, back it up first)
 
-6. fc-cache -f, if anything under ~/.local/share/fonts changed
+6. Copy B's assets[] into place — file by file, over nothing that is already there
+   → and they are not in the ledger, so switching away leaves every one of them
 
-7. Services: `disable --now` the ones in old but not in new, enable the new ones
+7. fc-cache -f, if anything under ~/.local/share/fonts changed
 
-8. post-install hook: same condition as step 3, and hooks_ran is updated after it
+8. Services: `disable --now` the ones in old but not in new, enable the new ones
 
-9. Update state.toml (`active`, `previous`, links, services, hooks_ran)
+9. post-install hook: same condition as step 3, and hooks_ran is updated after it
 
-10. Reload the WM:  hyprctl reload | swaymsg reload | i3-msg reload
+10. Update state.toml (`active`, `previous`, links, services, hooks_ran)
+
+11. Reload the WM:  hyprctl reload | swaymsg reload | i3-msg reload
     (if the WM differs, no reload — warn "log out of the session" instead)
 ```
 
-Steps 3 and 8 are the same first-activation check at two different points — `pre_install`
+Steps 3 and 9 are the same first-activation check at two different points — `pre_install`
 before the packages, `post_install` after the links. Collapsing them into one late step
 moves `pre_install` past everything it exists to prepare ([design.md §4.2](./design.md)).
 
