@@ -3,6 +3,7 @@
 ### 📚 Documentation
 
 - *(readme)* Name the crates.io route, and why it is the second-best one ([8f1e73a](https://github.com/murat-akpinar/dotpack/commit/8f1e73a21a6912d2ade9456bb750eba135bc30a3))
+- Record 0.1.0, and what running the acceptance test actually answered ([411264f](https://github.com/murat-akpinar/dotpack/commit/411264fcba6dcc9bb4918a4567587794d78e19cb)) — TODO.md ended the packaging section on "main is 22 commits ahead of origin, and there is no tag" — both false as of the release. What replaces it is where 0.1.0 went, the three things the manifest needed before crates.io would take it, and one deliberate absence: no AUR package and no versioned PKGBUILD, because `dotpack-git` builds main and a second recipe is a second thing to keep in step.
 ## [0.1.0] - 2026-08-24
 
 ### 🚀 Features
